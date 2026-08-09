@@ -45,7 +45,7 @@ export default {
       return json({
         ok: true,
         service: 'ELEVA Website Audit',
-        version: '1.7',
+        version: '1.8',
         pagespeedConfigured: Boolean(env.PAGESPEED_API_KEY)
       });
     }
@@ -91,7 +91,7 @@ async function auditRequest(request, env) {
     pageResp = await fetch(u.href, {
       redirect: 'follow',
       headers: {
-        'user-agent': 'Mozilla/5.0 (compatible; ELEVAWebsiteAudit/1.7; +https://madebyeleva.com)',
+        'user-agent': 'Mozilla/5.0 (compatible; ELEVAWebsiteAudit/1.8; +https://madebyeleva.com)',
         'accept': 'text/html,application/xhtml+xml'
       }
     });
@@ -218,7 +218,7 @@ async function probe(url) {
   try {
     const r = await fetch(url, {
       redirect: 'follow',
-      headers: { 'user-agent': 'ELEVAWebsiteAudit/1.7' }
+      headers: { 'user-agent': 'ELEVAWebsiteAudit/1.8' }
     });
     const text = (await r.text()).slice(0, 100000);
     return { ok: r.ok, text, status: r.status };

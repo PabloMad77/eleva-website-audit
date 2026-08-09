@@ -1,4 +1,4 @@
-# ELEVA Website Audit v1.7
+# ELEVA Website Audit v1.8
 
 Cloudflare Workers + Static Assets edition.
 
@@ -48,7 +48,7 @@ PAGESPEED_API_KEY="TU_KEY"
 ```
 
 
-## Scoring v1.7
+## Scoring v1.8
 
 The ELEVA Score is tuned for SMB / lead-generation websites. Overall weighting: Conversion 20%, Mobile 15%, Speed 15%, SEO 15%, Content 10%, Design & UX 10%, Visibility 8%, Structure 7%. Indexability blockers such as `noindex` or a site-wide robots disallow cap discoverability and the overall score.
 
@@ -59,16 +59,23 @@ This release also adds an ELEVA commercial recommendation (redesign, priority op
 El campo de auditoría acepta dominios como `laspulseras.com`, `www.laspulseras.com` o URLs completas. Si falta el protocolo, la app agrega `https://` automáticamente.
 
 
-## v1.7
+## v1.8
 - Reporte orientado a cliente con fortalezas y prioridades por impacto.
 - Nuevo bloque “Qué haríamos con tu sitio”.
 - PDF rediseñado con portada, resumen ejecutivo, fortalezas, prioridades, plan de acción y hallazgos.
 - Copy comercial mejorado para compartir auditorías con prospectos.
 
 
-## v1.7
+## v1.8
 
 - Agrega Potencial de mejora (Alto / Medio / Bajo).
 - Integra el resumen de propuesta dentro del PDF.
 - Mantiene la función Copiar resumen de propuesta.
 - Añade un cierre comercial de Siguiente paso sin precios automáticos.
+
+## v1.8
+
+- Replaces the browser print-dialog fallback with a built-in PDF generator.
+- PDF generation no longer depends on an external CDN.
+- `Descargar PDF` now creates and downloads a real `.pdf` file directly.
+- Keeps the client-facing report structure: cover, executive summary, category scores, strengths, priorities, ELEVA recommendation, next step, PSI summary and technical findings.

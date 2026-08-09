@@ -62,7 +62,7 @@ function buildReport(raw){
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
   const strengths=buildStrengths(s,psi,scores);
-  return {version:'1.7',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  return {version:'1.8',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -261,116 +261,262 @@ ${r.priorities.map((p,i)=>`${i+1}. ${p.title}: ${p.detail}`).join('\n')}
 Siguiente paso sugerido
 Implementar primero los puntos de mayor impacto y repetir la auditoría para documentar la mejora en score, experiencia y conversión.`;await navigator.clipboard.writeText(t);toast('Propuesta comercial copiada')});
 
-$('#pdfBtn').addEventListener('click',()=>{if(!currentReport)return; if(window.jspdf?.jsPDF) generatePdf(currentReport); else window.print();});
+$('#pdfBtn').addEventListener('click',()=>{
+  if(!currentReport)return;
+  try{
+    generatePdf(currentReport);
+    toast('PDF descargado');
+  }catch(err){
+    console.error(err);
+    toast('No se pudo generar el PDF');
+  }
+});
+
+// v1.8: PDF generator is bundled in the app itself. No CDN and no print-dialog fallback.
+// It creates a real PDF Blob and downloads it directly in the browser.
 function generatePdf(r){
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'mm',format:'a4'});
-  const W=210,H=297,M=18,CONTENT=174;
-  const C={ink:[15,18,22],muted:[97,105,116],soft:[244,246,248],line:[224,228,233],green:[24,145,92],amber:[211,142,36],red:[201,65,56],white:[255,255,255]};
-  const scoreColor=(v)=>v>=80?C.green:v>=55?C.amber:C.red;
-  const addFooter=(page)=>{doc.setDrawColor(...C.line);doc.line(M,282,W-M,282);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...C.muted);doc.text('ELEVA Website Audit · madebyeleva.com',M,289);doc.text(`Página ${page}`,W-M,289,{align:'right'});};
-  const wrap=(t,x,y,size=9,style='normal',max=CONTENT,color=C.ink)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(String(t||''),max);doc.text(lines,x,y);return y+lines.length*(size*.41)+2;};
-  const title=(t,y,sub='')=>{doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(...C.ink);doc.text(t,M,y);if(sub){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...C.muted);doc.text(sub,M,y+6);}return y+(sub?16:10);};
-  const section=(t,y)=>{doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...C.ink);doc.text(t,M,y);return y+7;};
-  const ensure=(y,need=24)=>{if(y+need>274){addFooter(doc.getNumberOfPages());doc.addPage();return 20;}return y;};
-  const badge=(txt,x,y,kind='soft')=>{const palette=kind==='green'?C.green:kind==='amber'?C.amber:kind==='red'?C.red:C.soft;doc.setFont('helvetica','bold');doc.setFontSize(7);const w=Math.max(20,doc.getTextWidth(txt)+8);doc.setFillColor(...palette);doc.roundedRect(x,y-4,w,7,3,3,'F');const tc=kind==='soft'?C.ink:C.white;doc.setTextColor(...tc);doc.text(txt,x+4,y+1);return w;};
-  const scoreRing=(cx,cy,score,radius=17)=>{doc.setDrawColor(229,232,236);doc.setLineWidth(3.6);doc.circle(cx,cy,radius,'S');doc.setDrawColor(...scoreColor(score));doc.setLineWidth(3.6);const seg=Math.max(3,Math.round(score/4));for(let i=0;i<seg;i++){const a1=(-90+i*3.6)*Math.PI/180,a2=(-90+(i+1)*3.6)*Math.PI/180;doc.line(cx+Math.cos(a1)*radius,cy+Math.sin(a1)*radius,cx+Math.cos(a2)*radius,cy+Math.sin(a2)*radius);}doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(...C.ink);doc.text(String(score),cx,cy+2,{align:'center'});doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(...C.muted);doc.text('/100',cx,cy+7,{align:'center'});};
-  const metricCard=(x,y,label,score,w=82)=>{doc.setFillColor(250,251,252);doc.setDrawColor(...C.line);doc.roundedRect(x,y,w,24,3,3,'FD');doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...C.muted);doc.text(label,x+6,y+8);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(...scoreColor(score));doc.text(String(score),x+6,y+18);doc.setFillColor(232,235,239);doc.roundedRect(x+28,y+15,w-34,3,1.5,1.5,'F');doc.setFillColor(...scoreColor(score));doc.roundedRect(x+28,y+15,(w-34)*score/100,3,1.5,1.5,'F');};
+  const PDF_W=595.28, PDF_H=841.89;
+  const M=48, CONTENT=PDF_W-M*2;
+  const C={ink:[17,19,24],muted:[101,107,117],soft:[245,247,249],line:[225,229,234],green:[27,145,91],amber:[205,137,34],red:[195,64,55],white:[255,255,255],dark2:[31,35,41]};
+  const pdf=new ElevaPdf(PDF_W,PDF_H);
+  const scoreColor=v=>v>=80?C.green:v>=55?C.amber:C.red;
   const potential=improvementPotential(r);
+  const potentialColor=potential.kind==='red'?C.red:potential.kind==='amber'?C.amber:C.green;
+  const date=new Date(r.createdAt).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
+  const shortDate=new Date(r.createdAt).toLocaleDateString('es-MX');
+
+  const footer=(p)=>{
+    p.line(M,798,PDF_W-M,798,C.line,0.7);
+    p.text('ELEVA Website Audit · madebyeleva.com',M,813,7,C.muted,'normal');
+    p.text(`Auditoría ${shortDate}`,PDF_W-M,813,7,C.muted,'normal','right');
+  };
+  const sectionTitle=(p,title,sub,y)=>{
+    p.text(title,M,y,21,C.ink,'bold');
+    if(sub)p.multiline(sub,M,y+18,8.5,C.muted,'normal',CONTENT,12);
+  };
+  const label=(p,t,x,y,color=C.muted)=>p.text(String(t).toUpperCase(),x,y,7.5,color,'bold');
+  const card=(p,x,y,w,h,fill=C.white,stroke=C.line)=>p.rect(x,y,w,h,fill,stroke,1,5);
 
   // PAGE 1 — COVER
-  doc.setFillColor(...C.ink);doc.rect(0,0,W,H,'F');
-  doc.setFillColor(31,35,41);doc.roundedRect(18,18,54,10,5,5,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255);doc.text('ELEVA WEBSITE AUDIT',25,24.5);
-  doc.setFont('helvetica','bold');doc.setFontSize(32);doc.text('Auditoría estratégica',M,68);doc.text('de sitio web',M,82);
-  doc.setFont('helvetica','normal');doc.setFontSize(14);doc.setTextColor(190);doc.text(r.domain,M,101);
-  doc.setDrawColor(70);doc.line(M,116,W-M,116);
-  doc.setFontSize(8);doc.setTextColor(150);doc.text('ELEVA SCORE',M,138);
-  doc.setFont('helvetica','bold');doc.setFontSize(58);doc.setTextColor(255);doc.text(String(r.overall),M,169);
-  doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(170);doc.text('/100',63,168);
-  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...scoreColor(r.overall));doc.text(scoreLabel(r.overall),M,184);
-  wrap(scoreSummary(r.overall),M,196,10,'normal',150,[205,208,214]);
-  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(145);doc.text(`Fecha: ${new Date(r.createdAt).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'})}`,M,253);doc.text(r.finalUrl,M,262);
-  doc.setFontSize(7);doc.setTextColor(115);doc.text('Análisis técnico + comercial · Google PageSpeed Insights + metodología ELEVA',M,278);
+  let p=pdf.addPage();
+  p.rect(0,0,PDF_W,PDF_H,C.ink,null,0,0);
+  p.rect(M,49,171,30,C.dark2,null,0,15);
+  p.text('ELEVA WEBSITE AUDIT',M+18,69,8,C.white,'bold');
+  p.text('Auditoría estratégica',M,176,31,C.white,'bold');
+  p.text('de sitio web',M,211,31,C.white,'bold');
+  p.text(r.domain,M,251,14,[190,195,202],'normal');
+  p.line(M,291,PDF_W-M,291,[74,79,86],0.8);
+  label(p,'ELEVA SCORE',M,343,[160,165,173]);
+  p.text(String(r.overall),M,423,61,C.white,'bold');
+  p.text('/100',M+108,420,12,[167,172,180],'normal');
+  p.text(scoreLabel(r.overall),M,456,13,scoreColor(r.overall),'bold');
+  p.multiline(scoreSummary(r.overall),M,486,10,[207,211,217],'normal',420,15);
+  label(p,'POTENCIAL DE MEJORA',M,587,[160,165,173]);
+  p.text(potential.level,M,616,20,potentialColor,'bold');
+  p.multiline(potential.detail,M,641,9,[201,205,212],'normal',430,14);
+  p.text(`Fecha: ${date}`,M,756,8,[149,154,162],'normal');
+  p.multiline(r.finalUrl,M,773,7,[128,134,143],'normal',CONTENT,10);
+  p.text('Análisis técnico + comercial · Google PageSpeed Insights + metodología ELEVA',M,811,7,[112,118,127],'normal');
 
-  // PAGE 2 — EXECUTIVE DASHBOARD
-  doc.addPage(); let y=22;
-  y=title('Resumen ejecutivo',y,'Una lectura rápida del estado actual del sitio y sus oportunidades de negocio.');
-  scoreRing(38,58,r.overall,18);
-  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...C.ink);doc.text(r.recommendation?.level||'Optimización',66,50);
-  y=wrap(r.recommendation?.title||scoreSummary(r.overall),66,58,9,'normal',122,C.muted);
-  y=wrap(r.recommendation?.detail||'',66,y+2,8,'normal',122,C.muted);
-  doc.setFillColor(...(potential.kind==='red'?[252,242,241]:potential.kind==='amber'?[253,248,239]:[240,249,245]));doc.roundedRect(66,73,122,13,3,3,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...(potential.kind==='red'?C.red:potential.kind==='amber'?C.amber:C.green));doc.text(`POTENCIAL DE MEJORA: ${potential.level}`,72,81);
-  y=94;
-  section('Score por categoría',y); y+=7;
-  categoryOrder.forEach((k,i)=>{const col=i%2,row=Math.floor(i/2);metricCard(M+col*90,y+row*30,categoryNames[k],r.scores[k],84);});
-  y+=122;
-  y=section('Lectura ejecutiva',y);
-  const strongest=categoryOrder.slice().sort((a,b)=>r.scores[b]-r.scores[a]).slice(0,2).map(k=>categoryNames[k]);
-  const weakest=categoryOrder.slice().sort((a,b)=>r.scores[a]-r.scores[b]).slice(0,2).map(k=>categoryNames[k]);
-  y=wrap(`El sitio destaca principalmente en ${strongest.join(' y ')}. Las áreas que hoy ofrecen mayor oportunidad de mejora son ${weakest.join(' y ')}.`,M,y,9,'normal',CONTENT,C.ink)+3;
-  doc.setFillColor(...C.soft);doc.roundedRect(M,y,CONTENT,32,3,3,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text('RECOMENDACIÓN ELEVA',M+7,y+9);
-  wrap(r.recommendation?.detail||'Priorizar las oportunidades de mayor impacto y medir nuevamente después de implementar.',M+7,y+17,8,'normal',160,C.muted);
-  addFooter(doc.getNumberOfPages());
+  // PAGE 2 — EXECUTIVE SUMMARY
+  p=pdf.addPage();
+  sectionTitle(p,'Resumen ejecutivo','Una lectura rápida del estado actual del sitio y de las oportunidades que pueden tener mayor impacto.',52);
+  card(p,M,117,CONTENT,112,C.soft,C.line);
+  label(p,'RECOMENDACIÓN ELEVA',M+20,143);
+  p.text(r.recommendation?.level||'Optimización',M+20,170,18,C.ink,'bold');
+  p.multiline(r.recommendation?.title||scoreSummary(r.overall),M+20,194,10,C.ink,'bold',CONTENT-40,14);
+  p.multiline(r.recommendation?.detail||'',M+20,223,8.5,C.muted,'normal',CONTENT-40,12);
+  let y=272;
+  label(p,'SCORE POR CATEGORÍA',M,y); y+=18;
+  categoryOrder.forEach((k,i)=>{
+    const col=i%2,row=Math.floor(i/2), x=M+col*257, yy=y+row*74;
+    card(p,x,yy,242,60,C.white,C.line);
+    p.text(categoryNames[k],x+14,yy+20,8,C.muted,'normal');
+    p.text(String(r.scores[k]),x+14,yy+44,18,scoreColor(r.scores[k]),'bold');
+    p.rect(x+58,yy+36,163,6,[232,235,239],null,0,3);
+    p.rect(x+58,yy+36,163*r.scores[k]/100,6,scoreColor(r.scores[k]),null,0,3);
+  });
+  y+=318;
+  const sorted=categoryOrder.slice().sort((a,b)=>r.scores[b]-r.scores[a]);
+  card(p,M,y,CONTENT,82,C.soft,C.line);
+  label(p,'LECTURA EJECUTIVA',M+18,y+22);
+  p.multiline(`El sitio destaca principalmente en ${categoryNames[sorted[0]]} y ${categoryNames[sorted[1]]}. Las áreas que hoy ofrecen mayor oportunidad de mejora son ${categoryNames[sorted[sorted.length-1]]} y ${categoryNames[sorted[sorted.length-2]]}.`,M+18,y+42,9,C.ink,'normal',CONTENT-36,13);
+  footer(p);
 
   // PAGE 3 — STRENGTHS + PRIORITIES
-  doc.addPage(); y=22;
-  y=title('Qué conservar y qué mejorar',y,'Una auditoría útil no solo señala problemas: también identifica lo que ya está funcionando.');
-  y=section('Fortalezas a conservar',y);
-  (r.strengths||[]).slice(0,5).forEach((s,i)=>{y=ensure(y,24);doc.setFillColor(240,249,245);doc.roundedRect(M,y-4,CONTENT,20,3,3,'F');doc.setFillColor(...C.green);doc.circle(M+6,y+6,2.2,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text(s.title,M+12,y+3);wrap(s.detail,M+12,y+9,7.5,'normal',154,C.muted);y+=25;});
-  y+=3; y=section('Prioridades por impacto',y);
-  r.priorities.slice(0,5).forEach((p,i)=>{y=ensure(y,26);const cc=p.status==='critical'?C.red:C.amber;doc.setFillColor(252,252,252);doc.setDrawColor(...C.line);doc.roundedRect(M,y-4,CONTENT,22,3,3,'FD');doc.setFillColor(...cc);doc.roundedRect(M,y-4,4,22,2,2,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...cc);doc.text(p.status==='critical'?'URGENTE':'IMPORTANTE',M+9,y+2);doc.setFontSize(9.5);doc.setTextColor(...C.ink);doc.text(p.title,M+9,y+8);wrap(p.detail,M+9,y+14,7.5,'normal',158,C.muted);y+=27;});
-  addFooter(doc.getNumberOfPages());
+  p=pdf.addPage();
+  sectionTitle(p,'Qué conservar y qué mejorar','Una buena auditoría también identifica lo que ya funciona para no perderlo durante una optimización o rediseño.',52);
+  y=119; label(p,'FORTALEZAS A CONSERVAR',M,y); y+=16;
+  (r.strengths||[]).slice(0,5).forEach(s=>{
+    const h=58; card(p,M,y,CONTENT,h,[241,249,245],null);
+    p.circle(M+17,y+18,5,C.green);
+    p.text('✓',M+17,y+21,7,C.white,'bold','center');
+    p.text(s.title,M+32,y+20,10,C.ink,'bold');
+    p.multiline(s.detail,M+32,y+37,8,C.muted,'normal',CONTENT-52,11);
+    y+=h+9;
+  });
+  y+=10; label(p,'PRIORIDADES POR IMPACTO',M,y); y+=18;
+  r.priorities.slice(0,5).forEach((it,i)=>{
+    const urgency=it.status==='critical'?'URGENTE':it.status==='warning'?'IMPORTANTE':'OPORTUNIDAD';
+    const cc=it.status==='critical'?C.red:it.status==='warning'?C.amber:C.green;
+    card(p,M,y,CONTENT,64,C.white,C.line);
+    p.rect(M,y,5,64,cc,null,0,3);
+    p.text(`${i+1}`,M+20,y+25,12,cc,'bold');
+    p.text(it.title,M+42,y+22,10,C.ink,'bold');
+    p.multiline(it.detail,M+42,y+39,7.7,C.muted,'normal',CONTENT-150,10.5);
+    p.text(urgency,PDF_W-M-16,y+22,7,cc,'bold','right');
+    y+=74;
+  });
+  footer(p);
 
-  // PAGE 4 — ACTION PLAN
-  doc.addPage(); y=22;
-  y=title('Plan de acción recomendado',y,'Qué haría ELEVA para convertir los hallazgos en mejoras concretas.');
-  const scope=r.recommendation?.scope||[];
-  scope.slice(0,6).forEach((item,i)=>{y=ensure(y,31);doc.setFillColor(...C.ink);doc.circle(M+7,y+6,6,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255);doc.text(String(i+1),M+7,y+8,{align:'center'});doc.setFontSize(11);doc.setTextColor(...C.ink);doc.text(item,M+20,y+5);const detail={
-    'UX y jerarquía':'Simplificar la lectura, clarificar el mensaje principal y dirigir al usuario hacia la acción correcta.',
-    'Conversión y contacto':'Fortalecer llamadas a la acción, formularios, WhatsApp o mecanismos de cotización.',
-    'Performance móvil':'Reducir fricción de carga y mejorar la experiencia desde celular.',
-    'SEO on-page':'Optimizar títulos, descripciones, estructura, indexación y señales para buscadores.',
-    'Contenido de confianza':'Reforzar testimonios, pruebas sociales, garantías, casos, ubicación y credenciales.',
-    'Estructura':'Ordenar navegación y contenido para que usuarios y buscadores entiendan mejor el sitio.'
-  }[item]||'Implementar mejoras concretas y medibles en esta área.';wrap(detail,M+20,y+12,8,'normal',150,C.muted);y+=31;});
-  y=ensure(y,48);doc.setFillColor(...C.soft);doc.roundedRect(M,y,CONTENT,38,4,4,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...C.ink);doc.text('Cómo mediríamos el avance',M+8,y+11);wrap('Implementar las prioridades de mayor impacto y volver a ejecutar ELEVA Website Audit para comparar score, experiencia móvil, visibilidad y capacidad de conversión.',M+8,y+20,8,'normal',157,C.muted);
-  addFooter(doc.getNumberOfPages());
+  // PAGE 4 — COMMERCIAL PROPOSAL
+  p=pdf.addPage();
+  sectionTitle(p,'Propuesta recomendada por ELEVA','El diagnóstico convertido en un alcance inicial claro, sin comprometer una cotización automática.',52);
+  card(p,M,119,CONTENT,91,C.ink,null);
+  label(p,'POTENCIAL DE MEJORA',M+20,145,[165,170,178]);
+  p.text(potential.level,M+20,178,23,potentialColor,'bold');
+  p.multiline(potential.detail,M+178,143,8.5,[214,218,224],'normal',CONTENT-198,13);
+  y=246; label(p,'DIAGNÓSTICO EJECUTIVO',M,y); y+=18;
+  p.multiline(`ELEVA Score: ${r.overall}/100. ${scoreSummary(r.overall)}`,M,y,9.5,C.ink,'normal',CONTENT,14); y+=48;
+  label(p,'QUÉ RECOMENDAMOS TRABAJAR',M,y); y+=18;
+  (r.recommendation?.scope||[]).slice(0,6).forEach((item,i)=>{
+    card(p,M,y,CONTENT,36,C.soft,null);
+    p.circle(M+18,y+18,9,C.ink);
+    p.text(String(i+1),M+18,y+21,8,C.white,'bold','center');
+    p.text(item,M+38,y+22,9,C.ink,'bold');
+    y+=44;
+  });
+  y+=9; label(p,'PRIORIDADES DETECTADAS',M,y); y+=18;
+  r.priorities.slice(0,3).forEach((it,i)=>{
+    p.text(`${i+1}. ${it.title}`,M,y,9,C.ink,'bold');
+    p.multiline(it.detail,M+14,y+15,7.5,C.muted,'normal',CONTENT-14,10.5);
+    y+=48;
+  });
+  footer(p);
 
-  // PAGE 5 — COMMERCIAL PROPOSAL SUMMARY
-  doc.addPage(); y=22;
-  y=title('Propuesta recomendada por ELEVA',y,'Del diagnóstico a un alcance claro de mejora, sin comprometer una cotización automática.');
-  doc.setFillColor(...C.ink);doc.roundedRect(M,y,CONTENT,38,4,4,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(170);doc.text('POTENCIAL DE MEJORA',M+8,y+10);
-  doc.setFontSize(20);doc.setTextColor(...(potential.kind==='red'?C.red:potential.kind==='amber'?C.amber:C.green));doc.text(potential.level,M+8,y+23);
-  wrap(potential.detail,M+50,y+10,8,'normal',124,[215,218,223]);
-  y+=49;
-  y=section('Diagnóstico ejecutivo',y);
-  y=wrap(`ELEVA Score: ${r.overall}/100. ${scoreSummary(r.overall)}`,M,y,9,'normal',CONTENT,C.ink)+4;
-  y=section('Recomendación',y);
-  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(...C.ink);doc.text(r.recommendation?.level||'Optimización',M,y); y+=7;
-  y=wrap(r.recommendation?.title||'',M,y,9,'bold',CONTENT,C.ink);
-  y=wrap(r.recommendation?.detail||'',M,y+1,8,'normal',CONTENT,C.muted)+5;
-  y=section('Qué recomendamos trabajar',y);
-  (r.recommendation?.scope||[]).slice(0,6).forEach((item,i)=>{y=ensure(y,14);doc.setFillColor(...C.soft);doc.roundedRect(M,y-4,CONTENT,11,2,2,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...C.ink);doc.text(`${i+1}. ${item}`,M+6,y+2);y+=14;});
-  y+=3; y=section('Prioridades detectadas',y);
-  r.priorities.slice(0,3).forEach((p,i)=>{y=ensure(y,20);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...C.ink);doc.text(`${i+1}. ${p.title}`,M,y);y=wrap(p.detail,M,y+6,7.5,'normal',CONTENT,C.muted)+4;});
-  y=ensure(y,42);doc.setFillColor(...C.soft);doc.roundedRect(M,y,CONTENT,34,4,4,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...C.ink);doc.text('Siguiente paso sugerido',M+8,y+10);
-  wrap('ELEVA puede convertir estos hallazgos en un plan de mejora y una propuesta personalizada para el sitio. Recomendamos comenzar por las prioridades de mayor impacto y repetir la auditoría después de implementar los cambios.',M+8,y+18,8,'normal',156,C.muted);
-  addFooter(doc.getNumberOfPages());
+  // PAGE 5 — NEXT STEP + TECHNICAL SUMMARY
+  p=pdf.addPage();
+  sectionTitle(p,'Siguiente paso','Cómo convertir esta auditoría en una mejora medible del sitio.',52);
+  card(p,M,119,CONTENT,129,C.ink,null);
+  p.text('De auditoría a plan de mejora.',M+23,153,17,C.white,'bold');
+  p.multiline('ELEVA puede convertir estos hallazgos en un plan de mejora y una propuesta personalizada para el sitio. Recomendamos comenzar por las prioridades de mayor impacto y repetir la auditoría después de implementar los cambios.',M+23,181,9,[214,218,224],'normal',CONTENT-46,14);
+  p.multiline('El objetivo no es únicamente aumentar un score: es mejorar la experiencia de las personas, la visibilidad del sitio y su capacidad de generar contactos o clientes.',M+23,226,8,[170,176,184],'normal',CONTENT-46,12);
+  y=291; label(p,'DATOS GOOGLE PSI',M,y); y+=17;
+  p.multiline('PageSpeed Insights ayuda a entender qué tan rápido y estable se siente el sitio para una persona que lo visita desde su celular. Menos tiempo suele ser mejor; ELEVA traduce estas métricas a recomendaciones accionables.',M,y,8.5,C.muted,'normal',CONTENT,12); y+=55;
+  const metrics=[['LCP',r.pagespeed?.metrics?.lcp],['INP',r.pagespeed?.metrics?.inp],['CLS',r.pagespeed?.metrics?.cls],['FCP',r.pagespeed?.metrics?.fcp],['TBT',r.pagespeed?.metrics?.tbt],['Speed Index',r.pagespeed?.metrics?.speedIndex]];
+  metrics.forEach((m,i)=>{
+    const col=i%3,row=Math.floor(i/3),x=M+col*171,yy=y+row*69;
+    card(p,x,yy,158,56,C.soft,null);
+    p.text(m[0],x+12,yy+18,7.5,C.muted,'bold');
+    p.text(m[1]?.display||'—',x+12,yy+40,14,C.ink,'bold');
+  });
+  y+=160; label(p,'HALLAZGOS PRINCIPALES',M,y); y+=16;
+  r.findings.slice(0,7).forEach(it=>{
+    const cc=it.status==='good'?C.green:it.status==='critical'?C.red:C.amber;
+    p.circle(M+4,y-3,3,cc);
+    p.text(it.title,M+14,y,8.5,C.ink,'bold');
+    p.multiline(it.detail,M+14,y+14,7,C.muted,'normal',CONTENT-90,9.5);
+    p.text(it.category,PDF_W-M,y,6.8,C.muted,'bold','right');
+    y+=42;
+  });
+  footer(p);
 
-  // PAGE 6 — TECHNICAL APPENDIX
-  doc.addPage(); y=22;
-  y=title('Apéndice técnico',y,'Detalle de hallazgos que respaldan la recomendación ejecutiva.');
-  r.findings.forEach(p=>{y=ensure(y,23);const cc=p.status==='good'?C.green:p.status==='critical'?C.red:C.amber;doc.setFillColor(...cc);doc.circle(M+2,y-1,1.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text(p.title,M+7,y);badge(p.category,W-M-38,y,p.status==='good'?'green':p.status==='critical'?'red':'amber');y=wrap(p.detail,M+7,y+6,7.7,'normal',155,C.muted)+4;});
-  y=ensure(y,44);doc.setFillColor(...C.ink);doc.roundedRect(M,y,CONTENT,36,4,4,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255);doc.text('Siguiente paso',M+8,y+11);wrap('Esta auditoría identifica oportunidades iniciales. ELEVA puede ayudarte a convertir estos hallazgos en un plan de mejora y una propuesta específica para tu sitio.',M+8,y+20,8,'normal',156,[215,218,223]);
-  addFooter(doc.getNumberOfPages());
-
-  doc.save(`ELEVA-Audit-${r.domain}-${new Date().toISOString().slice(0,10)}.pdf`);
+  const blob=pdf.toBlob();
+  const filename=`ELEVA-Audit-${safeFileName(r.domain)}-${new Date().toISOString().slice(0,10)}.pdf`;
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename; a.style.display='none';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2500);
 }
+
+function safeFileName(s='sitio'){
+  return String(s).toLowerCase().replace(/[^a-z0-9.-]+/g,'-').replace(/^-+|-+$/g,'')||'sitio';
+}
+
+class ElevaPdf{
+  constructor(w,h){this.w=w;this.h=h;this.pages=[];}
+  addPage(){const page=new ElevaPdfPage(this.w,this.h);this.pages.push(page);return page;}
+  toBlob(){return new Blob([this._bytes()],{type:'application/pdf'});}
+  _bytes(){
+    const objects=[];
+    objects[1]='<< /Type /Catalog /Pages 2 0 R >>';
+    const kids=[];
+    objects[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    objects[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+    this.pages.forEach((page,i)=>{
+      const contentId=5+i*2, pageId=6+i*2; kids.push(`${pageId} 0 R`);
+      const stream=page.commands.join('\n')+'\n';
+      const streamBytes=pdfCp1252(stream);
+      objects[contentId]={stream,byteLength:streamBytes.length};
+      objects[pageId]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.w.toFixed(2)} ${this.h.toFixed(2)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`;
+    });
+    objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${this.pages.length} >>`;
+    const parts=[pdfCp1252('%PDF-1.4\n%âãÏÓ\n')], offsets=[0];
+    let length=parts[0].length;
+    for(let i=1;i<objects.length;i++){
+      offsets[i]=length;
+      let body;
+      if(objects[i]&&typeof objects[i]==='object'&&'stream' in objects[i]){
+        body=`${i} 0 obj\n<< /Length ${objects[i].byteLength} >>\nstream\n${objects[i].stream}endstream\nendobj\n`;
+      }else body=`${i} 0 obj\n${objects[i]}\nendobj\n`;
+      const b=pdfCp1252(body); parts.push(b); length+=b.length;
+    }
+    const xrefOffset=length;
+    let xref=`xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+    for(let i=1;i<objects.length;i++)xref+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+    xref+=`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    parts.push(pdfCp1252(xref));
+    const total=parts.reduce((n,b)=>n+b.length,0),out=new Uint8Array(total);let pos=0;
+    parts.forEach(b=>{out.set(b,pos);pos+=b.length;});return out;
+  }
+}
+
+class ElevaPdfPage{
+  constructor(w,h){this.w=w;this.h=h;this.commands=[];}
+  _c(c){return c.map(v=>(v/255).toFixed(3)).join(' ');}
+  _y(top){return this.h-top;}
+  text(t,x,y,size=9,color=[0,0,0],weight='normal',align='left'){
+    t=String(t??''); const font=weight==='bold'?'/F2':'/F1';
+    const width=pdfEstimateWidth(t,size);
+    if(align==='right')x-=width; else if(align==='center')x-=width/2;
+    this.commands.push(`${this._c(color)} rg BT ${font} ${size.toFixed(2)} Tf 1 0 0 1 ${x.toFixed(2)} ${this._y(y).toFixed(2)} Tm (${pdfEscape(t)}) Tj ET`);
+  }
+  multiline(t,x,y,size=9,color=[0,0,0],weight='normal',maxWidth=400,lineHeight=size*1.35){
+    const lines=pdfWrap(String(t??''),size,maxWidth); lines.forEach((line,i)=>this.text(line,x,y+i*lineHeight,size,color,weight)); return lines.length*lineHeight;
+  }
+  rect(x,y,w,h,fill=null,stroke=null,lineWidth=1,radius=0){
+    const yy=this.h-y-h; let cmd='q ';
+    if(fill)cmd+=`${this._c(fill)} rg `; if(stroke)cmd+=`${this._c(stroke)} RG ${lineWidth.toFixed(2)} w `;
+    // rounded corners intentionally approximated as standard rectangles for maximum PDF compatibility.
+    cmd+=`${x.toFixed(2)} ${yy.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill&&stroke?'B':fill?'f':'S'} Q`; this.commands.push(cmd);
+  }
+  line(x1,y1,x2,y2,color=[0,0,0],width=1){this.commands.push(`q ${this._c(color)} RG ${width.toFixed(2)} w ${x1.toFixed(2)} ${this._y(y1).toFixed(2)} m ${x2.toFixed(2)} ${this._y(y2).toFixed(2)} l S Q`);}
+  circle(cx,cy,r,fill=[0,0,0]){
+    const k=.5522847498, y=this._y(cy),c=this._c(fill);
+    this.commands.push(`q ${c} rg ${(cx+r).toFixed(2)} ${y.toFixed(2)} m ${(cx+r).toFixed(2)} ${(y+k*r).toFixed(2)} ${(cx+k*r).toFixed(2)} ${(y+r).toFixed(2)} ${cx.toFixed(2)} ${(y+r).toFixed(2)} c ${(cx-k*r).toFixed(2)} ${(y+r).toFixed(2)} ${(cx-r).toFixed(2)} ${(y+k*r).toFixed(2)} ${(cx-r).toFixed(2)} ${y.toFixed(2)} c ${(cx-r).toFixed(2)} ${(y-k*r).toFixed(2)} ${(cx-k*r).toFixed(2)} ${(y-r).toFixed(2)} ${cx.toFixed(2)} ${(y-r).toFixed(2)} c ${(cx+k*r).toFixed(2)} ${(y-r).toFixed(2)} ${(cx+r).toFixed(2)} ${(y-k*r).toFixed(2)} ${(cx+r).toFixed(2)} ${y.toFixed(2)} c f Q`);
+  }
+}
+
+function pdfWrap(text,size,maxWidth){
+  const paras=String(text||'').replace(/\r/g,'').split('\n'), out=[];
+  paras.forEach((para,pi)=>{
+    const words=para.split(/\s+/).filter(Boolean); let line='';
+    words.forEach(word=>{const test=line?line+' '+word:word;if(pdfEstimateWidth(test,size)<=maxWidth)line=test;else{if(line)out.push(line);line=word;}});
+    if(line)out.push(line); if(!words.length)out.push(''); if(pi<paras.length-1&&para==='')out.push('');
+  });
+  return out.length?out:[''];
+}
+function pdfEstimateWidth(text,size){
+  let units=0; for(const ch of String(text)){if('ilI.,:;!|\'` '.includes(ch))units+=.26;else if('MW@%&QO'.includes(ch))units+=.82;else units+=.52;} return units*size;
+}
+function pdfEscape(s){return pdfSanitize(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');}
+function pdfSanitize(s){return String(s??'').replace(/[–—]/g,'-').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/…/g,'...').replace(/✓/g,'OK').replace(/✕/g,'X').replace(/[^\u0009\u000A\u000D\u0020-\u007E\u00A0-\u00FF]/g,'');}
+function pdfCp1252(str){
+  const map={'€':128,'‚':130,'ƒ':131,'„':132,'…':133,'†':134,'‡':135,'ˆ':136,'‰':137,'Š':138,'‹':139,'Œ':140,'Ž':142,'‘':145,'’':146,'“':147,'”':148,'•':149,'–':150,'—':151,'˜':152,'™':153,'š':154,'›':155,'œ':156,'ž':158,'Ÿ':159};
+  const s=String(str); const out=new Uint8Array(s.length); for(let i=0;i<s.length;i++){const code=s.charCodeAt(i),ch=s[i];out[i]=code<=255?code:(map[ch]??63);} return out;
+}
+
 function saveHistory(r){let h=JSON.parse(localStorage.getItem('elevaAudits')||'[]');h=h.filter(x=>x.domain!==r.domain);h.unshift({domain:r.domain,url:r.finalUrl,overall:r.overall,scores:r.scores,createdAt:r.createdAt,report:r});localStorage.setItem('elevaAudits',JSON.stringify(h.slice(0,20)))}
 function renderHistory(){const h=JSON.parse(localStorage.getItem('elevaAudits')||'[]');$('#historyList').innerHTML=h.length?h.map((x,i)=>`<div class="history-item"><div><strong>${esc(x.domain)}</strong><p>${new Date(x.createdAt).toLocaleString('es-MX')}</p></div><div class="history-score">${x.overall}</div><button class="secondary-btn" data-open="${i}">Abrir</button></div>`).join(''):'<div class="panel"><p class="muted">Aún no hay auditorías guardadas en este dispositivo.</p></div>';$$('[data-open]').forEach(b=>b.onclick=()=>{currentReport=h[+b.dataset.open].report;renderReport(currentReport);$$('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view==='audit'));$$('.view').forEach(v=>v.classList.remove('active'));$('#auditView').classList.add('active')})}
 $('#clearHistory').addEventListener('click',()=>{localStorage.removeItem('elevaAudits');renderHistory();toast('Historial eliminado')});

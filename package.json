@@ -1,6 +1,6 @@
 {
   "name": "eleva-website-audit",
-  "version": "1.2.0",
+  "version": "1.8.0",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
