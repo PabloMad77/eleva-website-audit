@@ -62,7 +62,7 @@ function buildReport(raw){
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
   const strengths=buildStrengths(s,psi,scores);
-  return {version:'1.8',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  return {version:'1.9',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -272,12 +272,12 @@ $('#pdfBtn').addEventListener('click',()=>{
   }
 });
 
-// v1.8: PDF generator is bundled in the app itself. No CDN and no print-dialog fallback.
+// v1.9: PDF generator is bundled in the app itself. No CDN and no print-dialog fallback.
 // It creates a real PDF Blob and downloads it directly in the browser.
 function generatePdf(r){
   const PDF_W=595.28, PDF_H=841.89;
   const M=48, CONTENT=PDF_W-M*2;
-  const C={ink:[17,19,24],muted:[101,107,117],soft:[245,247,249],line:[225,229,234],green:[27,145,91],amber:[205,137,34],red:[195,64,55],white:[255,255,255],dark2:[31,35,41]};
+  const C={ink:[17,19,24],muted:[101,107,117],soft:[245,247,249],line:[225,229,234],green:[27,145,91],greenSoft:[240,249,245],amber:[205,137,34],amberSoft:[252,247,236],red:[195,64,55],redSoft:[252,242,241],white:[255,255,255],dark2:[31,35,41],accent:[83,76,255],accentSoft:[243,242,255]};
   const pdf=new ElevaPdf(PDF_W,PDF_H);
   const scoreColor=v=>v>=80?C.green:v>=55?C.amber:C.red;
   const potential=improvementPotential(r);
@@ -285,10 +285,10 @@ function generatePdf(r){
   const date=new Date(r.createdAt).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'});
   const shortDate=new Date(r.createdAt).toLocaleDateString('es-MX');
 
-  const footer=(p)=>{
-    p.line(M,798,PDF_W-M,798,C.line,0.7);
+  const footer=(p,pageNum)=>{
+    p.line(M,796,PDF_W-M,796,C.line,0.7);
     p.text('ELEVA Website Audit · madebyeleva.com',M,813,7,C.muted,'normal');
-    p.text(`Auditoría ${shortDate}`,PDF_W-M,813,7,C.muted,'normal','right');
+    p.text(`${pageNum}/6`,PDF_W-M,813,7,C.muted,'normal','right');
   };
   const sectionTitle=(p,title,sub,y)=>{
     p.text(title,M,y,21,C.ink,'bold');
@@ -296,6 +296,7 @@ function generatePdf(r){
   };
   const label=(p,t,x,y,color=C.muted)=>p.text(String(t).toUpperCase(),x,y,7.5,color,'bold');
   const card=(p,x,y,w,h,fill=C.white,stroke=C.line)=>p.rect(x,y,w,h,fill,stroke,1,5);
+  const pill=(p,text,x,y,fill,textColor,w)=>{p.rect(x,y,w,22,fill,null,0,11);p.text(text,x+w/2,y+15,7.2,textColor,'bold','center');};
 
   // PAGE 1 — COVER
   let p=pdf.addPage();
@@ -341,85 +342,118 @@ function generatePdf(r){
   card(p,M,y,CONTENT,82,C.soft,C.line);
   label(p,'LECTURA EJECUTIVA',M+18,y+22);
   p.multiline(`El sitio destaca principalmente en ${categoryNames[sorted[0]]} y ${categoryNames[sorted[1]]}. Las áreas que hoy ofrecen mayor oportunidad de mejora son ${categoryNames[sorted[sorted.length-1]]} y ${categoryNames[sorted[sorted.length-2]]}.`,M+18,y+42,9,C.ink,'normal',CONTENT-36,13);
-  footer(p);
+  footer(p,2);
 
-  // PAGE 3 — STRENGTHS + PRIORITIES
+  // PAGE 3 — ONLY THE MOST IMPORTANT STRENGTHS + OPPORTUNITIES
   p=pdf.addPage();
-  sectionTitle(p,'Qué conservar y qué mejorar','Una buena auditoría también identifica lo que ya funciona para no perderlo durante una optimización o rediseño.',52);
-  y=119; label(p,'FORTALEZAS A CONSERVAR',M,y); y+=16;
-  (r.strengths||[]).slice(0,5).forEach(s=>{
-    const h=58; card(p,M,y,CONTENT,h,[241,249,245],null);
-    p.circle(M+17,y+18,5,C.green);
-    p.text('✓',M+17,y+21,7,C.white,'bold','center');
-    p.text(s.title,M+32,y+20,10,C.ink,'bold');
-    p.multiline(s.detail,M+32,y+37,8,C.muted,'normal',CONTENT-52,11);
-    y+=h+9;
+  sectionTitle(p,'Fortalezas y oportunidades','Lo esencial para decidir qué conservar y qué conviene atender primero.',52);
+  y=119; label(p,'3 FORTALEZAS PRINCIPALES',M,y); y+=18;
+  (r.strengths||[]).slice(0,3).forEach(s=>{
+    card(p,M,y,CONTENT,70,C.greenSoft,null);
+    p.circle(M+20,y+23,7,C.green);
+    p.text('OK',M+20,y+26,5.5,C.white,'bold','center');
+    p.text(s.title,M+40,y+22,10.5,C.ink,'bold');
+    p.multiline(s.detail,M+40,y+42,8,C.muted,'normal',CONTENT-62,11);
+    y+=82;
   });
-  y+=10; label(p,'PRIORIDADES POR IMPACTO',M,y); y+=18;
-  r.priorities.slice(0,5).forEach((it,i)=>{
+  y+=13; label(p,'TOP 3 PRIORIDADES',M,y); y+=20;
+  r.priorities.slice(0,3).forEach((it,i)=>{
     const urgency=it.status==='critical'?'URGENTE':it.status==='warning'?'IMPORTANTE':'OPORTUNIDAD';
     const cc=it.status==='critical'?C.red:it.status==='warning'?C.amber:C.green;
-    card(p,M,y,CONTENT,64,C.white,C.line);
-    p.rect(M,y,5,64,cc,null,0,3);
-    p.text(`${i+1}`,M+20,y+25,12,cc,'bold');
-    p.text(it.title,M+42,y+22,10,C.ink,'bold');
-    p.multiline(it.detail,M+42,y+39,7.7,C.muted,'normal',CONTENT-150,10.5);
-    p.text(urgency,PDF_W-M-16,y+22,7,cc,'bold','right');
-    y+=74;
+    const bg=it.status==='critical'?C.redSoft:it.status==='warning'?C.amberSoft:C.greenSoft;
+    card(p,M,y,CONTENT,88,bg,null);
+    p.text(`${i+1}`,M+20,y+31,18,cc,'bold');
+    p.text(it.title,M+54,y+25,10.5,C.ink,'bold');
+    p.multiline(it.detail,M+54,y+45,8,C.muted,'normal',CONTENT-168,11);
+    pill(p,urgency,PDF_W-M-105,y+18,[255,255,255],cc,88);
+    y+=100;
   });
-  footer(p);
+  footer(p,3);
 
-  // PAGE 4 — COMMERCIAL PROPOSAL
+  // PAGE 4 — PROPOSAL / MINI CONSULTING SCOPE
   p=pdf.addPage();
-  sectionTitle(p,'Propuesta recomendada por ELEVA','El diagnóstico convertido en un alcance inicial claro, sin comprometer una cotización automática.',52);
-  card(p,M,119,CONTENT,91,C.ink,null);
-  label(p,'POTENCIAL DE MEJORA',M+20,145,[165,170,178]);
-  p.text(potential.level,M+20,178,23,potentialColor,'bold');
-  p.multiline(potential.detail,M+178,143,8.5,[214,218,224],'normal',CONTENT-198,13);
-  y=246; label(p,'DIAGNÓSTICO EJECUTIVO',M,y); y+=18;
-  p.multiline(`ELEVA Score: ${r.overall}/100. ${scoreSummary(r.overall)}`,M,y,9.5,C.ink,'normal',CONTENT,14); y+=48;
-  label(p,'QUÉ RECOMENDAMOS TRABAJAR',M,y); y+=18;
-  (r.recommendation?.scope||[]).slice(0,6).forEach((item,i)=>{
-    card(p,M,y,CONTENT,36,C.soft,null);
-    p.circle(M+18,y+18,9,C.ink);
-    p.text(String(i+1),M+18,y+21,8,C.white,'bold','center');
-    p.text(item,M+38,y+22,9,C.ink,'bold');
-    y+=44;
+  sectionTitle(p,'Propuesta ELEVA','Un alcance inicial construido a partir de lo que el sitio realmente necesita.',52);
+  card(p,M,118,CONTENT,101,C.ink,null);
+  label(p,'RECOMENDACIÓN',M+20,145,[166,171,180]);
+  p.text(r.recommendation?.level||'Optimización',M+20,176,21,C.white,'bold');
+  p.multiline(r.recommendation?.title||'',M+20,200,9,[216,220,225],'normal',CONTENT-40,13);
+  y=259; label(p,'QUÉ RECOMENDAMOS TRABAJAR',M,y); y+=20;
+  (r.recommendation?.scope||[]).slice(0,5).forEach((item,i)=>{
+    const col=i%2,row=Math.floor(i/2),x=M+col*257,yy=y+row*66;
+    card(p,x,yy,242,53,C.soft,null);
+    p.circle(x+18,yy+26,10,C.ink);
+    p.text(String(i+1),x+18,yy+29,8,C.white,'bold','center');
+    p.multiline(item,x+38,yy+23,9,C.ink,'bold',184,11.5);
   });
-  y+=9; label(p,'PRIORIDADES DETECTADAS',M,y); y+=18;
-  r.priorities.slice(0,3).forEach((it,i)=>{
-    p.text(`${i+1}. ${it.title}`,M,y,9,C.ink,'bold');
-    p.multiline(it.detail,M+14,y+15,7.5,C.muted,'normal',CONTENT-14,10.5);
-    y+=48;
+  y+=205;
+  label(p,'IMPACTO ESPERADO',M,y); y+=20;
+  const impacts=[
+    ['Más visibilidad','Mejor base técnica para que buscadores entiendan y encuentren el sitio.'],
+    ['Mejor experiencia','Menos fricción al navegar, especialmente desde celular.'],
+    ['Más oportunidades de contacto','Un recorrido más claro hacia WhatsApp, formulario, cotización o agenda.']
+  ];
+  impacts.forEach((it,i)=>{
+    const x=M+i*171;
+    card(p,x,y,158,114,C.accentSoft,null);
+    p.text(String(i+1).padStart(2,'0'),x+14,y+24,8,C.accent,'bold');
+    p.multiline(it[0],x+14,y+47,10,C.ink,'bold',130,12);
+    p.multiline(it[1],x+14,y+72,7.4,C.muted,'normal',130,10.5);
   });
-  footer(p);
+  footer(p,4);
 
-  // PAGE 5 — NEXT STEP + TECHNICAL SUMMARY
+  // PAGE 5 — CLEAN COMMERCIAL CLOSE
   p=pdf.addPage();
-  sectionTitle(p,'Siguiente paso','Cómo convertir esta auditoría en una mejora medible del sitio.',52);
-  card(p,M,119,CONTENT,129,C.ink,null);
-  p.text('De auditoría a plan de mejora.',M+23,153,17,C.white,'bold');
-  p.multiline('ELEVA puede convertir estos hallazgos en un plan de mejora y una propuesta personalizada para el sitio. Recomendamos comenzar por las prioridades de mayor impacto y repetir la auditoría después de implementar los cambios.',M+23,181,9,[214,218,224],'normal',CONTENT-46,14);
-  p.multiline('El objetivo no es únicamente aumentar un score: es mejorar la experiencia de las personas, la visibilidad del sitio y su capacidad de generar contactos o clientes.',M+23,226,8,[170,176,184],'normal',CONTENT-46,12);
-  y=291; label(p,'DATOS GOOGLE PSI',M,y); y+=17;
-  p.multiline('PageSpeed Insights ayuda a entender qué tan rápido y estable se siente el sitio para una persona que lo visita desde su celular. Menos tiempo suele ser mejor; ELEVA traduce estas métricas a recomendaciones accionables.',M,y,8.5,C.muted,'normal',CONTENT,12); y+=55;
+  p.rect(0,0,PDF_W,PDF_H,C.white,null,0,0);
+  label(p,'SIGUIENTE PASO',M,80,C.accent);
+  p.text('De auditoría a resultados.',M,139,29,C.ink,'bold');
+  p.multiline('La auditoría muestra dónde están las oportunidades. El siguiente paso es convertirlas en un plan de mejora específico para el sitio, priorizando lo que puede generar mayor impacto.',M,179,11,C.muted,'normal',CONTENT,17);
+  card(p,M,290,CONTENT,194,C.ink,null);
+  p.text('¿Qué haríamos después?',M+24,329,16,C.white,'bold');
+  const nextSteps=[
+    'Definir prioridades y alcance de trabajo.',
+    'Implementar las mejoras de mayor impacto.',
+    'Volver a medir para documentar el avance.'
+  ];
+  nextSteps.forEach((txt,i)=>{
+    p.circle(M+30,365+i*37,10,C.accent);
+    p.text(String(i+1),M+30,368+i*37,8,C.white,'bold','center');
+    p.text(txt,M+51,368+i*37,9,[226,229,234],'normal');
+  });
+  p.rect(M,527,CONTENT,74,C.accent,null,0,6);
+  p.text('Solicitar propuesta personalizada',M+CONTENT/2,559,13,C.white,'bold','center');
+  p.text('madebyeleva.com',M+CONTENT/2,581,8,[229,228,255],'normal','center');
+  p.multiline('El objetivo no es únicamente aumentar un score. Es mejorar la experiencia de las personas, la visibilidad del sitio y su capacidad de generar contactos o clientes.',M,650,10,C.ink,'normal',CONTENT,15);
+  p.text(`Auditoría preparada para ${r.domain} · ${shortDate}`,M,746,7.5,C.muted,'normal');
+  footer(p,5);
+
+  // PAGE 6 — TECHNICAL APPENDIX
+  p=pdf.addPage();
+  sectionTitle(p,'Apéndice técnico','Las métricas y hallazgos que respaldan la recomendación comercial.',52);
+  y=116; label(p,'GOOGLE PAGESPEED INSIGHTS',M,y); y+=18;
+  p.multiline('Estas métricas ayudan a entender qué tan rápido y estable se siente el sitio en móvil. ELEVA las usa como señales técnicas, no como el único criterio para recomendar cambios.',M,y,8.3,C.muted,'normal',CONTENT,12); y+=46;
   const metrics=[['LCP',r.pagespeed?.metrics?.lcp],['INP',r.pagespeed?.metrics?.inp],['CLS',r.pagespeed?.metrics?.cls],['FCP',r.pagespeed?.metrics?.fcp],['TBT',r.pagespeed?.metrics?.tbt],['Speed Index',r.pagespeed?.metrics?.speedIndex]];
   metrics.forEach((m,i)=>{
-    const col=i%3,row=Math.floor(i/3),x=M+col*171,yy=y+row*69;
-    card(p,x,yy,158,56,C.soft,null);
-    p.text(m[0],x+12,yy+18,7.5,C.muted,'bold');
-    p.text(m[1]?.display||'—',x+12,yy+40,14,C.ink,'bold');
+    const col=i%3,row=Math.floor(i/3),x=M+col*171,yy=y+row*67;
+    const rating=m[1]?.rating||'warning', cc=rating==='good'?C.green:rating==='critical'?C.red:C.amber;
+    card(p,x,yy,158,54,C.soft,null);
+    p.text(m[0],x+12,yy+17,7.3,C.muted,'bold');
+    p.text(m[1]?.display||'—',x+12,yy+39,13,C.ink,'bold');
+    p.circle(x+144,yy+17,3,cc);
   });
-  y+=160; label(p,'HALLAZGOS PRINCIPALES',M,y); y+=16;
-  r.findings.slice(0,7).forEach(it=>{
+  y+=153; label(p,'HALLAZGOS COMPLETOS',M,y); y+=18;
+  const findings=(r.findings||[]).slice(0,16);
+  const colW=240, gap=19, rowH=55;
+  findings.forEach((it,i)=>{
+    const col=i<8?0:1, row=i%8, x=M+col*(colW+gap), yy=y+row*rowH;
     const cc=it.status==='good'?C.green:it.status==='critical'?C.red:C.amber;
-    p.circle(M+4,y-3,3,cc);
-    p.text(it.title,M+14,y,8.5,C.ink,'bold');
-    p.multiline(it.detail,M+14,y+14,7,C.muted,'normal',CONTENT-90,9.5);
-    p.text(it.category,PDF_W-M,y,6.8,C.muted,'bold','right');
-    y+=42;
+    p.circle(x+4,yy+7,3,cc);
+    p.multiline(it.title,x+13,yy+9,7.7,C.ink,'bold',colW-20,9.5);
+    p.multiline(it.detail,x+13,yy+25,6.4,C.muted,'normal',colW-20,8.2);
   });
-  footer(p);
+  if((r.findings||[]).length>16){
+    p.text(`+ ${(r.findings||[]).length-16} hallazgo(s) adicional(es) disponibles en el dashboard.`,M,755,7,C.muted,'normal');
+  }
+  footer(p,6);
 
   const blob=pdf.toBlob();
   const filename=`ELEVA-Audit-${safeFileName(r.domain)}-${new Date().toISOString().slice(0,10)}.pdf`;
