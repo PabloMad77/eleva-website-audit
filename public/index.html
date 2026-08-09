@@ -20,7 +20,7 @@
         <button class="nav-item" data-view="history">◷ <span>Historial</span></button>
         <button class="nav-item" data-view="about">ⓘ <span>Metodología</span></button>
       </nav>
-      <div class="sidebar-foot">made by <strong>ELEVA</strong><br><span>v1.2</span></div>
+      <div class="sidebar-foot">made by <strong>ELEVA</strong><br><span>v1.4</span></div>
     </aside>
 
     <main>
@@ -42,10 +42,10 @@
           <form id="auditForm" class="audit-form">
             <label for="urlInput">URL del sitio</label>
             <div class="url-row">
-              <input id="urlInput" name="url" type="url" placeholder="https://ejemplo.com" required autocomplete="url" />
+              <input id="urlInput" name="url" type="text" inputmode="url" placeholder="ejemplo.com" required autocomplete="url" autocapitalize="none" spellcheck="false" />
               <button id="auditButton" class="primary-btn" type="submit">Auditar sitio</button>
             </div>
-            <div class="form-meta"><span>✓ Mobile-first</span><span>✓ Google PageSpeed</span><span>✓ Conversion audit</span></div>
+            <div class="url-help">Escribe solo el dominio si quieres, por ejemplo <strong>laspulseras.com</strong>. No necesitas agregar https:// ni www.</div><div class="form-meta"><span>✓ Mobile-first</span><span>✓ Google PageSpeed</span><span>✓ Conversion audit</span></div>
           </form>
         </div>
 
@@ -132,7 +132,7 @@
         <div class="method-grid">
           <article class="panel"><span class="eyebrow">CÓMO FUNCIONA</span><h2>Un score útil para negocio, no solo para developers.</h2><p>ELEVA combina Google PageSpeed/Lighthouse con reglas comerciales propias. En v1.3 damos mayor peso a conversión, mobile y velocidad, y reducimos el peso de señales visuales que no pueden evaluarse con precisión sin una captura.</p></article>
           <article class="panel"><h3>Qué sí mide v1.3</h3><ul><li>Performance móvil y Lighthouse</li><li>SEO on-page básico</li><li>Viewport y señales responsive</li><li>Jerarquía de encabezados</li><li>Contenido y metadatos</li><li>CTA, WhatsApp, formularios y cotización</li><li>Robots, sitemap y canonical</li><li>Señales de confianza y contacto</li></ul></article>
-          <article class="panel"><h3>Qué no pretende medir v1.3</h3><ul><li>Calidad estética subjetiva completa</li><li>Ranking real en Google</li><li>Conversion rate real sin analytics</li><li>Contenido detrás de login</li></ul><p class="muted">Estas áreas pueden añadirse en versiones posteriores mediante capturas, IA visual, Search Console y Analytics.</p></article>
+          <article class="panel"><h3>Qué no pretende medir v1.4</h3><ul><li>Calidad estética subjetiva completa</li><li>Ranking real en Google</li><li>Conversion rate real sin analytics</li><li>Contenido detrás de login</li></ul><p class="muted">Estas áreas pueden añadirse en versiones posteriores mediante capturas, IA visual, Search Console y Analytics.</p></article>
         </div>
       </section>
     </main>

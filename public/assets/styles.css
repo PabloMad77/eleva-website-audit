@@ -22,3 +22,5 @@
 .psi-note{font-size:11px;color:var(--muted);line-height:1.55;margin:14px 0 0}
 @media(max-width:760px){.metric-guide{grid-template-columns:1fr}}
 @media print{.psi-explainer,.metric-guide,.psi-note{break-inside:avoid}}
+
+.url-help{font-size:.82rem;color:var(--muted);margin-top:8px;line-height:1.45}.url-help strong{color:var(--text)}

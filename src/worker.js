@@ -45,7 +45,7 @@ export default {
       return json({
         ok: true,
         service: 'ELEVA Website Audit',
-        version: '1.3',
+        version: '1.4',
         pagespeedConfigured: Boolean(env.PAGESPEED_API_KEY)
       });
     }
