@@ -9,3 +9,16 @@
 .recommendation-detail{max-width:900px;font-size:1rem;line-height:1.65;color:var(--muted)}
 .recommendation-scope{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 .recommendation-scope span{border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:.82rem;font-weight:600;background:#fff}
+
+
+/* v1.3 PSI plain-language guide */
+.psi-explainer{margin-top:16px;padding:14px 16px;border-radius:14px;background:#f7f8fa;border:1px solid var(--line)}
+.psi-explainer strong{font-size:12px}
+.psi-explainer p{margin:6px 0 0;font-size:11px;line-height:1.6;color:var(--muted)}
+.metric-guide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.metric-guide>div{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.metric-guide b{display:block;font-size:11px;margin-bottom:5px}
+.metric-guide span{display:block;font-size:10px;line-height:1.45;color:var(--muted)}
+.psi-note{font-size:11px;color:var(--muted);line-height:1.55;margin:14px 0 0}
+@media(max-width:760px){.metric-guide{grid-template-columns:1fr}}
+@media print{.psi-explainer,.metric-guide,.psi-note{break-inside:avoid}}
