@@ -1,4 +1,4 @@
-# ELEVA Website Audit v1.1
+# ELEVA Website Audit v1.2
 
 Cloudflare Workers + Static Assets edition.
 
@@ -46,3 +46,10 @@ Para probar PageSpeed localmente crea `.dev.vars` (no lo subas a GitHub):
 ```text
 PAGESPEED_API_KEY="TU_KEY"
 ```
+
+
+## Scoring v1.2
+
+The ELEVA Score is tuned for SMB / lead-generation websites. Overall weighting: Conversion 20%, Mobile 15%, Speed 15%, SEO 15%, Content 10%, Design & UX 10%, Visibility 8%, Structure 7%. Indexability blockers such as `noindex` or a site-wide robots disallow cap discoverability and the overall score.
+
+This release also adds an ELEVA commercial recommendation (redesign, priority optimization, or growth/continuous improvement), includes it in the PDF, and creates a more useful proposal summary.
