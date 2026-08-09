@@ -54,7 +54,8 @@ function buildReport(raw){
 
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
-  return {version:'1.4',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  const strengths=buildStrengths(s,psi,scores);
+  return {version:'1.5',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -165,6 +166,27 @@ function buildRecommendation(scores,s,overall){
   }
   return {level:'Growth & mejora continua',title:'La base es sólida; recomendamos optimización incremental',detail:`El sitio funciona bien. El mayor retorno vendrá de mejorar ${weak.join(', ')} y medir el impacto de cambios específicos.`,scope:['CRO / pruebas de CTA','Performance fina','SEO de contenidos','Schema y visibilidad','Reauditoría periódica']};
 }
+function buildStrengths(s,psi,scores){
+  const items=[];
+  const add=(title,detail,category)=>items.push({title,detail,category});
+  if((psi.categories?.performance??0)>=90) add('Carga móvil rápida',`Google PageSpeed Performance: ${psi.categories.performance}/100.`, 'Velocidad');
+  if((psi.categories?.accessibility??0)>=90) add('Buena accesibilidad',`Lighthouse Accessibility: ${psi.categories.accessibility}/100.`, 'Diseño & UX');
+  if(scores.seo>=80) add('Base SEO sólida',`El sitio obtiene ${scores.seo}/100 en SEO y ya cuenta con varias señales on-page correctas.`, 'SEO');
+  if(scores.mobile>=80) add('Buena experiencia móvil',`Mobile obtiene ${scores.mobile}/100; conviene conservar esta base al hacer cambios.`, 'Mobile');
+  if(s.whatsapp) add('WhatsApp disponible','Existe una ruta directa para iniciar conversación con el negocio.','Conversión');
+  if(s.formCount>0) add('Captura de prospectos','El sitio ya cuenta con formulario para recibir información del visitante.','Conversión');
+  if(s.trustSignals) add('Señales de confianza','Detectamos elementos como testimonios, reseñas, garantía, experiencia o casos que ayudan a reducir fricción.','Contenido');
+  if(s.sitemap && s.robotsTxt) add('Rastreo preparado','robots.txt y sitemap están disponibles para ayudar a los buscadores a recorrer el sitio.','Visibilidad');
+  if(s.schema) add('Datos estructurados','El sitio utiliza Schema, una señal útil para que los buscadores comprendan mejor el contenido.','Visibilidad');
+  if(s.altCoverage>=.8) add('Imágenes bien descritas',`${Math.round(s.altCoverage*100)}% de las imágenes tienen texto alternativo.`, 'Contenido');
+  if(s.ctaCount>=2) add('Llamadas a la acción visibles',`Detectamos ${s.ctaCount} CTA relevantes a lo largo de la página.`, 'Conversión');
+  if(!items.length){
+    const best=Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,2);
+    best.forEach(([k,v])=>add(`${categoryNames[k]} es una base aprovechable`,`${v}/100. Esta área puede conservarse mientras se atienden las prioridades principales.`,categoryNames[k]));
+  }
+  return items.slice(0,5);
+}
+
 function severity(s){return s==='critical'?3:s==='warning'?2:1}
 function f(status,category,title,detail,impact=5){return{status,category,title,detail,impact}}
 function makeFindings(s,p,scores,raw){const out=[];
@@ -195,10 +217,12 @@ function renderReport(r){
   $('#results').classList.remove('hidden'); $('#reportDomain').textContent=r.domain; $('#reportDate').textContent=`${new Date(r.createdAt).toLocaleString('es-MX')} · ${r.finalUrl}`;
   $('#overallScore').textContent=r.overall; $('#scoreLabel').textContent=scoreLabel(r.overall); $('#scoreSummary').textContent=scoreSummary(r.overall); $('#scoreRing').style.background=`conic-gradient(var(--accent) ${r.overall*3.6}deg,#edf0f3 0deg)`;
   $('#categoryCards').innerHTML=categoryOrder.map(k=>`<article class="category-card"><div class="cat-top"><span>${categoryNames[k]}</span><strong>${r.scores[k]}</strong></div><div class="bar"><i style="width:${r.scores[k]}%"></i></div></article>`).join('');
-  $('#priorities').innerHTML=r.priorities.length?r.priorities.map((x,i)=>`<div class="priority"><div class="priority-num">${i+1}</div><div><strong>${esc(x.title)}</strong><p>${esc(x.detail)}</p></div><span class="impact ${x.status}">${x.status==='critical'?'Alta':x.status==='warning'?'Media':'Baja'}</span></div>`).join(''):'<p class="muted">No se detectaron prioridades críticas.</p>';
+  $('#strengths').innerHTML=(r.strengths||[]).map(x=>`<div class="strength"><span class="strength-check">✓</span><div><strong>${esc(x.title)}</strong><p>${esc(x.detail)}</p></div><span>${esc(x.category)}</span></div>`).join('')||'<p class="muted">La mayor fortaleza es que ya existe una base sobre la cual trabajar.</p>';
+  $('#priorities').innerHTML=r.priorities.length?r.priorities.map((x,i)=>`<div class="priority"><div class="priority-num">${i+1}</div><div><strong>${esc(x.title)}</strong><p>${esc(x.detail)}</p></div><span class="impact ${x.status}">${x.status==='critical'?'Urgente':x.status==='warning'?'Importante':'Oportunidad'}</span></div>`).join(''):'<p class="muted">No se detectaron prioridades críticas.</p>';
   const s=r.scan; const checks=[['WhatsApp',s.whatsapp],['Formulario',s.formCount>0],['Cotización / agenda',s.quoteSignals],['CTA principal',s.ctaCount>0],['Teléfono',s.phone],['Email',s.email],['Prueba social / confianza',s.trustSignals],['Redes sociales',s.socialLinks>0]];
   $('#conversionChecklist').innerHTML=checks.map(([n,v])=>`<div class="check"><span>${n}</span><b class="${v?'ok':'no'}">${v?'✓ Sí':'✕ No'}</b></div>`).join('');
   const rec=r.recommendation||{}; $('#recommendationTitle').textContent=rec.title||'—'; $('#recommendationLevel').textContent=rec.level||'—'; $('#recommendationDetail').textContent=rec.detail||'—'; $('#recommendationScope').innerHTML=(rec.scope||[]).map(x=>`<span>${esc(x)}</span>`).join('');
+  $('#actionPlanLevel').textContent=rec.level||'ELEVA'; $('#actionPlanText').textContent=rec.detail||'—'; $('#actionPlanScope').innerHTML=(rec.scope||[]).map((x,i)=>`<span><b>${i+1}</b>${esc(x)}</span>`).join('');
   renderMetrics(r.pagespeed); renderFindings(r.findings); $('#psiStatus').textContent=r.pagespeed.available?'Datos Google PSI':'PSI no disponible';
   $('#results').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -207,7 +231,7 @@ function renderFindings(items,filter='all'){$('#findings').innerHTML=items.filte
 $$('.mini-btn').forEach(b=>b.addEventListener('click',()=>{$$('.mini-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');if(currentReport)renderFindings(currentReport.findings,b.dataset.filter)}));
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 
-$('#shareBtn').addEventListener('click',async()=>{if(!currentReport)return;const r=currentReport;const lines=[`ELEVA Website Audit — ${r.domain}`,`Score general: ${r.overall}/100`,...categoryOrder.map(k=>`${categoryNames[k]}: ${r.scores[k]}/100`),'','Top oportunidades:',...r.priorities.map((p,i)=>`${i+1}. ${p.title} — ${p.detail}`)];await navigator.clipboard.writeText(lines.join('\n'));toast('Resumen copiado')});
+$('#shareBtn').addEventListener('click',async()=>{if(!currentReport)return;const r=currentReport;const lines=[`ELEVA Website Audit — ${r.domain}`,`Score general: ${r.overall}/100`,...categoryOrder.map(k=>`${categoryNames[k]}: ${r.scores[k]}/100`),'','Fortalezas:',...(r.strengths||[]).map((p,i)=>`${i+1}. ${p.title}`),'','Top oportunidades:',...r.priorities.map((p,i)=>`${i+1}. ${p.title} — ${p.detail}`)];await navigator.clipboard.writeText(lines.join('\n'));toast('Resumen copiado')});
 $('#proposalBtn').addEventListener('click',async()=>{if(!currentReport)return;const r=currentReport,rec=r.recommendation||{};const t=`PROPUESTA ELEVA — ${r.domain}
 
 Diagnóstico ejecutivo
@@ -217,7 +241,10 @@ Recomendación
 ${rec.level||'Optimización'} — ${rec.title||''}
 ${rec.detail||''}
 
-Alcance sugerido
+Fortalezas a conservar
+${(r.strengths||[]).map(x=>`• ${x.title}`).join('\n')}
+
+Qué haríamos con tu sitio
 ${(rec.scope||[]).map(x=>`• ${x}`).join('\n')}
 
 Prioridades detectadas
@@ -228,16 +255,57 @@ Implementar primero los puntos de mayor impacto y repetir la auditoría para doc
 
 $('#pdfBtn').addEventListener('click',()=>{if(!currentReport)return; if(window.jspdf?.jsPDF) generatePdf(currentReport); else window.print();});
 function generatePdf(r){
-  const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'mm',format:'a4'}); const W=210; let y=18;
-  const text=(t,x,yy,size=10,style='normal',max=174)=>{doc.setFont('helvetica',style);doc.setFontSize(size);const lines=doc.splitTextToSize(String(t),max);doc.text(lines,x,yy);return yy+lines.length*(size*.43)+2};
-  doc.setFillColor(12,13,16);doc.rect(0,0,W,52,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('ELEVA WEBSITE AUDIT',18,17);doc.setFontSize(24);doc.text(r.domain,18,30);doc.setFontSize(10);doc.setTextColor(190);doc.text(new Date(r.createdAt).toLocaleDateString('es-MX'),18,39);doc.setTextColor(255);doc.setFontSize(30);doc.text(String(r.overall),166,31);doc.setFontSize(9);doc.text('/100',183,31);
-  y=64;doc.setTextColor(17);doc.setFontSize(15);doc.setFont('helvetica','bold');doc.text('Score por categoría',18,y);y+=9;
-  categoryOrder.forEach((k,i)=>{const x=i%2===0?18:108;if(i%2===0&&i>0)y+=18;doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text(categoryNames[k],x,y);doc.setFont('helvetica','bold');doc.text(`${r.scores[k]}/100`,x+64,y);doc.setFillColor(235);doc.roundedRect(x,y+3,72,3,1.5,1.5,'F');doc.setFillColor(20,20,20);doc.roundedRect(x,y+3,72*r.scores[k]/100,3,1.5,1.5,'F');});
-  y+=29;doc.setFontSize(15);doc.setFont('helvetica','bold');doc.text('Recomendación ELEVA',18,y);y+=7;doc.setFontSize(10);doc.text(r.recommendation?.level||'Optimización',18,y);y=text(r.recommendation?.title||'',18,y+5,9,'bold',174);y=text(r.recommendation?.detail||'',18,y+1,8,'normal',174)+3;(r.recommendation?.scope||[]).forEach(x=>{y=text(`• ${x}`,22,y,8,'normal',164)});y+=5;if(y>245){doc.addPage();y=18}doc.setFontSize(15);doc.setFont('helvetica','bold');doc.text('Top oportunidades',18,y);y+=8;r.priorities.forEach((p,i)=>{doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text(`${i+1}. ${p.title}`,18,y);y=text(p.detail,24,y+5,8,'normal',160)+4;if(y>270){doc.addPage();y=18}});
-  y+=3;doc.setFontSize(15);doc.setFont('helvetica','bold');doc.text('Hallazgos',18,y);y+=8;r.findings.forEach(p=>{if(y>270){doc.addPage();y=18}doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text(`• ${p.title} [${p.category}]`,18,y);y=text(p.detail,22,y+5,8,'normal',164)+3});
-  doc.setFontSize(7);doc.setTextColor(120);doc.text('Reporte generado por ELEVA Website Audit v1.2 · madebyeleva.com',18,289);doc.save(`ELEVA-Audit-${r.domain}-${new Date().toISOString().slice(0,10)}.pdf`);
-}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,H=297,M=18,C={ink:[18,19,23],muted:[104,110,120],soft:[242,244,247],green:[25,135,84],amber:[196,126,32],red:[190,61,52]};
+  const addFooter=(page)=>{doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...C.muted);doc.text(`ELEVA Website Audit v1.5 · madebyeleva.com`,M,289);doc.text(`Página ${page}`,185,289)};
+  const wrap=(t,x,y,size=9,style='normal',max=174,color=C.ink)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(String(t||''),max);doc.text(lines,x,y);return y+lines.length*(size*.42)+2};
+  const heading=(t,y)=>{doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...C.ink);doc.text(t,M,y);return y+8};
+  const pill=(t,x,y)=>{doc.setFont('helvetica','bold');doc.setFontSize(7);const w=Math.max(20,doc.getTextWidth(t)+8);doc.setFillColor(...C.soft);doc.roundedRect(x,y-4,w,7,3,3,'F');doc.setTextColor(...C.ink);doc.text(t,x+4,y+1);return w};
+  const newPage=()=>{addFooter(doc.getNumberOfPages());doc.addPage();return 20};
+  const ensure=(y,need=28)=>y+need>278?newPage():y;
 
+  // Cover
+  doc.setFillColor(...C.ink);doc.rect(0,0,W,H,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('ELEVA WEBSITE AUDIT',M,24);
+  doc.setFontSize(30);doc.text('Auditoría de',M,66);doc.text('sitio web',M,79);
+  doc.setFontSize(18);doc.setTextColor(205);doc.text(r.domain,M,96);
+  doc.setDrawColor(70);doc.line(M,112,192,112);
+  doc.setFontSize(9);doc.setTextColor(185);doc.text('ELEVA SCORE',M,133);doc.setFontSize(52);doc.setTextColor(255);doc.text(String(r.overall),M,160);doc.setFontSize(12);doc.text('/100',57,160);
+  doc.setFontSize(14);doc.text(scoreLabel(r.overall),M,177);
+  let yy=wrap(scoreSummary(r.overall),M,188,10,'normal',155,[205,205,205]);
+  doc.setFontSize(8);doc.setTextColor(160);doc.text(`Analizado: ${new Date(r.createdAt).toLocaleString('es-MX')}`,M,250);doc.text(r.finalUrl,M,258);
+  doc.setFontSize(8);doc.setTextColor(140);doc.text('Reporte técnico y comercial · Datos Google PageSpeed + metodología ELEVA',M,276);
+
+  // Executive page
+  doc.addPage(); let y=22;
+  y=heading('Resumen ejecutivo',y);
+  y=wrap(`El sitio obtiene un ELEVA Score de ${r.overall}/100. ${scoreSummary(r.overall)}`,M,y,10,'normal',174)+5;
+  doc.setFillColor(...C.soft);doc.roundedRect(M,y,174,27,3,3,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text('RECOMENDACIÓN',M+6,y+8);doc.setFontSize(13);doc.text(r.recommendation?.level||'Optimización',M+6,y+17);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...C.muted);doc.text(r.recommendation?.title||'',M+6,y+23);y+=36;
+  y=heading('Score por categoría',y);
+  categoryOrder.forEach((k,i)=>{const x=i%2===0?M:110;if(i%2===0&&i>0)y+=17;doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...C.ink);doc.text(categoryNames[k],x,y);doc.setFont('helvetica','bold');doc.text(`${r.scores[k]}/100`,x+62,y);doc.setFillColor(231,234,238);doc.roundedRect(x,y+4,72,3,1.5,1.5,'F');const sc=r.scores[k];const cc=sc>=80?C.green:sc>=55?C.amber:C.red;doc.setFillColor(...cc);doc.roundedRect(x,y+4,72*sc/100,3,1.5,1.5,'F');});y+=28;
+  y=heading('Fortalezas a conservar',y);
+  (r.strengths||[]).slice(0,4).forEach(s=>{y=ensure(y,18);doc.setFillColor(...C.green);doc.circle(M+2,y-1,1.8,'F');y=wrap(s.title,M+7,y,9,'bold',160);y=wrap(s.detail,M+7,y,8,'normal',160,C.muted)+2;});
+  addFooter(doc.getNumberOfPages());
+
+  // Priorities / action page
+  doc.addPage(); y=22;
+  y=heading('Prioridades por impacto',y);
+  r.priorities.forEach((p,i)=>{y=ensure(y,28);const cc=p.status==='critical'?C.red:C.amber;doc.setFillColor(...cc);doc.circle(M+4,y-1,4,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text(String(i+1),M+2.8,y+1.6);doc.setTextColor(...C.ink);doc.setFontSize(10);doc.text(p.title,M+12,y+1);y=wrap(p.detail,M+12,y+7,8,'normal',156,C.muted)+4;});
+  y=ensure(y,52);y=heading('Qué haríamos con tu sitio',y);
+  y=wrap(r.recommendation?.detail||'',M,y,9,'normal',174)+3;
+  (r.recommendation?.scope||[]).forEach((x,i)=>{y=ensure(y,14);pill(`${i+1}`,M,y);y=wrap(x,M+13,y+1,9,'bold',160)+3;});
+  addFooter(doc.getNumberOfPages());
+
+  // Technical findings
+  doc.addPage(); y=22;
+  y=heading('Hallazgos técnicos y comerciales',y);
+  y=wrap('Estos hallazgos explican qué está ayudando o limitando al sitio. Las prioridades anteriores concentran los puntos de mayor impacto para negocio.',M,y,9,'normal',174,C.muted)+5;
+  r.findings.forEach(p=>{y=ensure(y,22);const cc=p.status==='good'?C.green:p.status==='critical'?C.red:C.amber;doc.setFillColor(...cc);doc.circle(M+2,y-1,1.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text(p.title,M+7,y);pill(p.category,145,y);y=wrap(p.detail,M+7,y+6,8,'normal',160,C.muted)+4;});
+  y=ensure(y,36);doc.setFillColor(...C.ink);doc.roundedRect(M,y,174,30,3,3,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('Siguiente paso',M+7,y+10);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(doc.splitTextToSize('Priorizar las mejoras de mayor impacto, implementarlas y repetir la auditoría para medir el avance.',155),M+7,y+18);
+  addFooter(doc.getNumberOfPages());
+  doc.save(`ELEVA-Audit-${r.domain}-${new Date().toISOString().slice(0,10)}.pdf`);
+}
 function saveHistory(r){let h=JSON.parse(localStorage.getItem('elevaAudits')||'[]');h=h.filter(x=>x.domain!==r.domain);h.unshift({domain:r.domain,url:r.finalUrl,overall:r.overall,scores:r.scores,createdAt:r.createdAt,report:r});localStorage.setItem('elevaAudits',JSON.stringify(h.slice(0,20)))}
 function renderHistory(){const h=JSON.parse(localStorage.getItem('elevaAudits')||'[]');$('#historyList').innerHTML=h.length?h.map((x,i)=>`<div class="history-item"><div><strong>${esc(x.domain)}</strong><p>${new Date(x.createdAt).toLocaleString('es-MX')}</p></div><div class="history-score">${x.overall}</div><button class="secondary-btn" data-open="${i}">Abrir</button></div>`).join(''):'<div class="panel"><p class="muted">Aún no hay auditorías guardadas en este dispositivo.</p></div>';$$('[data-open]').forEach(b=>b.onclick=()=>{currentReport=h[+b.dataset.open].report;renderReport(currentReport);$$('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view==='audit'));$$('.view').forEach(v=>v.classList.remove('active'));$('#auditView').classList.add('active')})}
 $('#clearHistory').addEventListener('click',()=>{localStorage.removeItem('elevaAudits');renderHistory();toast('Historial eliminado')});
