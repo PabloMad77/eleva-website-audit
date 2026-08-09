@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>ELEVA Website Audit</title>
+  <meta name="description" content="Auditoría visual, técnica y comercial de sitios web por ELEVA." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">E</div><div><strong>ELEVA</strong><span>Website Audit</span></div></div>
+      <nav>
+        <button class="nav-item active" data-view="audit">⌁ <span>Nueva auditoría</span></button>
+        <button class="nav-item" data-view="history">◷ <span>Historial</span></button>
+        <button class="nav-item" data-view="about">ⓘ <span>Metodología</span></button>
+      </nav>
+      <div class="sidebar-foot">made by <strong>ELEVA</strong><br><span>v1.0</span></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">WEBSITE INTELLIGENCE</div>
+          <h1>Convierte una URL en oportunidades claras.</h1>
+        </div>
+        <a class="ghost-btn" href="https://madebyeleva.com" target="_blank" rel="noreferrer">madebyeleva.com ↗</a>
+      </header>
+
+      <section id="auditView" class="view active">
+        <div class="hero-card">
+          <div>
+            <span class="pill">AUDITORÍA AUTOMÁTICA</span>
+            <h2>¿Qué tan bien está trabajando tu página?</h2>
+            <p>Analiza performance, SEO, mobile, contenido, conversión, WhatsApp, cotización y facilidad de descubrimiento.</p>
+          </div>
+          <form id="auditForm" class="audit-form">
+            <label for="urlInput">URL del sitio</label>
+            <div class="url-row">
+              <input id="urlInput" name="url" type="url" placeholder="https://ejemplo.com" required autocomplete="url" />
+              <button id="auditButton" class="primary-btn" type="submit">Auditar sitio</button>
+            </div>
+            <div class="form-meta"><span>✓ Mobile-first</span><span>✓ Google PageSpeed</span><span>✓ Conversion audit</span></div>
+          </form>
+        </div>
+
+        <div id="progressCard" class="progress-card hidden">
+          <div class="spinner"></div>
+          <div><strong id="progressTitle">Analizando...</strong><span id="progressText">Revisando estructura y señales técnicas.</span></div>
+        </div>
+
+        <section id="results" class="results hidden">
+          <div class="result-head">
+            <div>
+              <span class="eyebrow">REPORTE</span>
+              <h2 id="reportDomain">—</h2>
+              <p id="reportDate"></p>
+            </div>
+            <div class="actions">
+              <button id="shareBtn" class="secondary-btn">Copiar resumen</button>
+              <button id="pdfBtn" class="primary-btn">Descargar PDF</button>
+            </div>
+          </div>
+
+          <div class="score-grid">
+            <article class="overall-card">
+              <div class="score-ring" id="scoreRing"><div><strong id="overallScore">0</strong><span>/100</span></div></div>
+              <div><span class="eyebrow">ELEVA SCORE</span><h3 id="scoreLabel">—</h3><p id="scoreSummary">—</p></div>
+            </article>
+            <div id="categoryCards" class="category-grid"></div>
+          </div>
+
+          <div class="two-col">
+            <article class="panel">
+              <div class="panel-head"><div><span class="eyebrow">PRIORIDADES</span><h3>Top oportunidades</h3></div><span class="badge">Impacto alto</span></div>
+              <div id="priorities" class="priority-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-head"><div><span class="eyebrow">CONVERSIÓN</span><h3>¿Puede generar clientes?</h3></div></div>
+              <div id="conversionChecklist" class="check-list"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-head"><div><span class="eyebrow">CORE WEB VITALS</span><h3>Experiencia y velocidad móvil</h3></div><span id="psiStatus" class="badge neutral">Google PSI</span></div>
+            <div id="metrics" class="metrics-grid"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><span class="eyebrow">HALLAZGOS</span><h3>Qué encontramos</h3></div><div class="filter-row"><button class="mini-btn active" data-filter="all">Todo</button><button class="mini-btn" data-filter="critical">Crítico</button><button class="mini-btn" data-filter="warning">Mejorar</button><button class="mini-btn" data-filter="good">Bien</button></div></div>
+            <div id="findings" class="findings"></div>
+          </article>
+
+          <article class="panel report-cta">
+            <div><span class="eyebrow">SIGUIENTE PASO</span><h3>De auditoría a propuesta.</h3><p>Usa los hallazgos para priorizar un rediseño, optimización SEO o mejoras de conversión.</p></div>
+            <button id="proposalBtn" class="secondary-btn">Generar resumen de propuesta</button>
+          </article>
+        </section>
+      </section>
+
+      <section id="historyView" class="view">
+        <div class="section-head"><div><span class="eyebrow">HISTORIAL LOCAL</span><h2>Auditorías recientes</h2></div><button id="clearHistory" class="ghost-btn">Limpiar historial</button></div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+
+      <section id="aboutView" class="view">
+        <div class="method-grid">
+          <article class="panel"><span class="eyebrow">CÓMO FUNCIONA</span><h2>Un score útil para negocio, no solo para developers.</h2><p>ELEVA combina señales de Google PageSpeed/Lighthouse con reglas propias orientadas a UX, contenido, estructura y conversión.</p></article>
+          <article class="panel"><h3>Qué sí mide V1</h3><ul><li>Performance móvil y Lighthouse</li><li>SEO on-page básico</li><li>Viewport y señales responsive</li><li>Jerarquía de encabezados</li><li>Contenido y metadatos</li><li>CTA, WhatsApp, formularios y cotización</li><li>Robots, sitemap y canonical</li><li>Señales de confianza y contacto</li></ul></article>
+          <article class="panel"><h3>Qué no pretende medir V1</h3><ul><li>Calidad estética subjetiva completa</li><li>Ranking real en Google</li><li>Conversion rate real sin analytics</li><li>Contenido detrás de login</li></ul><p class="muted">Estas áreas pueden añadirse en versiones posteriores mediante capturas, IA visual, Search Console y Analytics.</p></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
