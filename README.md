@@ -1,4 +1,4 @@
-# ELEVA Website Audit v1.9
+# ELEVA Website Audit v1.9.1
 
 Cloudflare Workers + Static Assets edition.
 
@@ -88,3 +88,9 @@ El campo de auditoría acepta dominios como `laspulseras.com`, `www.laspulseras.
 - Página 5 dedicada exclusivamente al cierre comercial y CTA.
 - Google PSI y hallazgos movidos al apéndice técnico de la página 6.
 - Footer y espaciado ajustados para evitar cruces con contenido.
+
+
+## v1.9.1
+
+- Ajuste puntual del PDF: el recuadro de Recomendación ELEVA en el resumen ejecutivo ahora tiene mayor altura y margen inferior para evitar que el texto descriptivo se salga del contenedor.
+- Se conserva sin cambios la lógica de auditoría, scoring, PageSpeed, dashboard y estructura de seis páginas del PDF.

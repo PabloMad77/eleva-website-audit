@@ -62,7 +62,7 @@ function buildReport(raw){
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
   const strengths=buildStrengths(s,psi,scores);
-  return {version:'1.9',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  return {version:'1.9.1',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -272,7 +272,7 @@ $('#pdfBtn').addEventListener('click',()=>{
   }
 });
 
-// v1.9: PDF generator is bundled in the app itself. No CDN and no print-dialog fallback.
+// v1.9.1: PDF generator is bundled in the app itself. No CDN and no print-dialog fallback.
 // It creates a real PDF Blob and downloads it directly in the browser.
 function generatePdf(r){
   const PDF_W=595.28, PDF_H=841.89;
@@ -322,12 +322,12 @@ function generatePdf(r){
   // PAGE 2 — EXECUTIVE SUMMARY
   p=pdf.addPage();
   sectionTitle(p,'Resumen ejecutivo','Una lectura rápida del estado actual del sitio y de las oportunidades que pueden tener mayor impacto.',52);
-  card(p,M,117,CONTENT,112,C.soft,C.line);
+  card(p,M,117,CONTENT,138,C.soft,C.line);
   label(p,'RECOMENDACIÓN ELEVA',M+20,143);
   p.text(r.recommendation?.level||'Optimización',M+20,170,18,C.ink,'bold');
   p.multiline(r.recommendation?.title||scoreSummary(r.overall),M+20,194,10,C.ink,'bold',CONTENT-40,14);
   p.multiline(r.recommendation?.detail||'',M+20,223,8.5,C.muted,'normal',CONTENT-40,12);
-  let y=272;
+  let y=296;
   label(p,'SCORE POR CATEGORÍA',M,y); y+=18;
   categoryOrder.forEach((k,i)=>{
     const col=i%2,row=Math.floor(i/2), x=M+col*257, yy=y+row*74;
