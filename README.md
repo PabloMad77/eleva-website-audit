@@ -1,66 +1,48 @@
-# ELEVA Website Audit v1.0
+# ELEVA Website Audit v1.1
 
-Auditoría automatizada de sitios web diseñada para uso comercial y técnico de ELEVA.
+Cloudflare Workers + Static Assets edition.
 
-## Incluye
-- Score general 0–100
-- Diseño & UX (heurístico)
-- Mobile
-- Velocidad / Google PageSpeed
-- SEO
-- Estructura
-- Contenido
-- Conversión
-- Visibilidad / indexability readiness
-- Detección de WhatsApp, formularios y señales de cotización
-- Core Web Vitals / Lighthouse cuando Google PSI responde
-- Top 5 oportunidades
-- Historial local (browser localStorage)
-- Copiar resumen y resumen para propuesta
-- Exportar reporte a PDF desde el navegador
+## Qué cambió respecto a v1.0
+La v1.0 se desplegó como sitio estático y Cloudflare no activó el runtime de Worker. Esta versión incorpora un Worker real y sirve el dashboard como Static Assets.
 
-## Cloudflare Pages
+- `src/worker.js` — backend y endpoint `/api/audit`
+- `public/` — interfaz HTML/CSS/JS
+- `wrangler.jsonc` — configuración de Cloudflare Workers
+- `package.json` — scripts de desarrollo y deploy
 
-**Importante:** no uses el drag-and-drop del dashboard para esta versión. Cloudflare no soporta actualmente Pages Functions mediante Direct Upload desde el dashboard. Usa GitHub/GitLab o Wrangler.
+## Cloudflare
+El proyecto necesita un Worker script y Static Assets. `wrangler.jsonc` ya está configurado con:
 
-Este proyecto usa Pages Functions. La carpeta `/functions` debe estar en la raíz del proyecto, tal como indica la documentación de Cloudflare Pages.
+- Worker: `src/worker.js`
+- Static assets: `./public`
+- Assets binding: `ASSETS`
+- Worker-first solamente para `/api/*`
 
-### Opción A — Subir por Git (recomendado)
-1. Sube este folder a un repositorio GitHub.
-2. Cloudflare > Workers & Pages > Create application > Pages > Connect to Git.
-3. Framework preset: None.
-4. Build command: dejar vacío.
-5. Build output directory: `/` (o el directorio raíz que Cloudflare solicite según tu integración).
-6. Deploy.
+## Secret requerido
+Después del primer deployment correcto, agrega en Cloudflare:
 
-### Opción B — desarrollo local
-Instala Node.js y ejecuta desde la raíz:
+`PAGESPEED_API_KEY`
+
+como **Secret** de runtime.
+
+No guardes la API key en GitHub ni en este repositorio.
+
+## Prueba rápida
+Una vez publicado:
+
+- `/api/health` debe devolver JSON con `ok: true`.
+- `pagespeedConfigured` cambia a `true` cuando el Secret está configurado.
+- La interfaz utiliza `POST /api/audit`.
+
+## Desarrollo local opcional
 
 ```bash
-npx wrangler pages dev .
+npm install
+npx wrangler dev
 ```
 
-## Google PageSpeed API key (recomendado)
-La API puede funcionar sin key en algunos escenarios, pero para uso recurrente conviene configurar una key.
+Para probar PageSpeed localmente crea `.dev.vars` (no lo subas a GitHub):
 
-En Cloudflare Pages:
-- Settings > Variables and Secrets
-- Variable: `PAGESPEED_API_KEY`
-- Value: tu API key de Google Cloud con PageSpeed Insights API habilitada
-
-El código nunca expone esta key al browser: la usa la Pages Function.
-
-## Limitaciones intencionales de V1
-- “Diseño & UX” es un score heurístico basado en estructura, accesibilidad, CTAs, responsive y señales de confianza. No afirma juzgar estética como un diseñador humano.
-- “Visibilidad” mide preparación técnica para ser descubierto (robots, sitemap, canonical, schema, metadatos), no ranking real en Google.
-- El análisis HTML revisa principalmente la URL ingresada; V2 puede rastrear múltiples páginas.
-- Sitios que bloquean bots/firewalls pueden devolver auditoría parcial.
-
-## Próximas versiones sugeridas
-- Screenshot desktop/mobile + análisis visual
-- Rastreo de 5–20 páginas internas
-- Competitor benchmark
-- Search Console / GA4
-- Lead capture branded reports
-- White-label client mode
-- PDF con logo del prospecto y branding editable
+```text
+PAGESPEED_API_KEY="TU_KEY"
+```
