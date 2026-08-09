@@ -9,6 +9,13 @@ function normalizeUrl(v){ let s=v.trim(); if(!/^https?:\/\//i.test(s)) s='https:
 function clamp(n,min=0,max=100){return Math.max(min,Math.min(max,Math.round(n)))}
 function scoreLabel(s){return s>=90?'Excelente':s>=80?'Muy bien':s>=70?'Buen punto de partida':s>=55?'Necesita optimización':'Oportunidad importante'}
 function scoreSummary(s){return s>=80?'El sitio tiene una base sólida. Enfócate en mejoras puntuales para convertir mejor.':s>=60?'Hay una buena base, pero varias mejoras pueden elevar visibilidad, experiencia y conversión.':'El sitio presenta oportunidades claras que pueden afectar confianza, descubrimiento o generación de clientes.'}
+function improvementPotential(r){
+  const critical=(r.priorities||[]).filter(x=>x.status==='critical').length;
+  const weak=Object.values(r.scores||{}).filter(v=>v<60).length;
+  if(r.overall<70 || critical>=2 || weak>=3) return {level:'ALTO',kind:'red',detail:'Hay oportunidades claras que pueden generar una mejora visible en experiencia, conversión y presencia digital si se atienden las prioridades principales.'};
+  if(r.overall<85 || critical>=1 || weak>=1) return {level:'MEDIO',kind:'amber',detail:'El sitio tiene una base aprovechable y puede mejorar de forma medible con optimizaciones focalizadas.'};
+  return {level:'BAJO',kind:'green',detail:'La base actual es sólida. El mayor valor vendrá de mejoras incrementales, pruebas de conversión y optimización continua.'};
+}
 function statusClass(s){return s>=80?'good':s>=55?'warning':'critical'}
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
 
@@ -55,7 +62,7 @@ function buildReport(raw){
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
   const strengths=buildStrengths(s,psi,scores);
-  return {version:'1.5',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  return {version:'1.7',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -232,10 +239,11 @@ $$('.mini-btn').forEach(b=>b.addEventListener('click',()=>{$$('.mini-btn').forEa
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 
 $('#shareBtn').addEventListener('click',async()=>{if(!currentReport)return;const r=currentReport;const lines=[`ELEVA Website Audit — ${r.domain}`,`Score general: ${r.overall}/100`,...categoryOrder.map(k=>`${categoryNames[k]}: ${r.scores[k]}/100`),'','Fortalezas:',...(r.strengths||[]).map((p,i)=>`${i+1}. ${p.title}`),'','Top oportunidades:',...r.priorities.map((p,i)=>`${i+1}. ${p.title} — ${p.detail}`)];await navigator.clipboard.writeText(lines.join('\n'));toast('Resumen copiado')});
-$('#proposalBtn').addEventListener('click',async()=>{if(!currentReport)return;const r=currentReport,rec=r.recommendation||{};const t=`PROPUESTA ELEVA — ${r.domain}
+$('#proposalBtn').addEventListener('click',async()=>{if(!currentReport)return;const r=currentReport,rec=r.recommendation||{};const potential=improvementPotential(r);const t=`PROPUESTA ELEVA — ${r.domain}
 
 Diagnóstico ejecutivo
 ELEVA Score: ${r.overall}/100. ${scoreSummary(r.overall)}
+Potencial de mejora: ${potential.level}. ${potential.detail}
 
 Recomendación
 ${rec.level||'Optimización'} — ${rec.title||''}
@@ -257,53 +265,110 @@ $('#pdfBtn').addEventListener('click',()=>{if(!currentReport)return; if(window.j
 function generatePdf(r){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'mm',format:'a4'});
-  const W=210,H=297,M=18,C={ink:[18,19,23],muted:[104,110,120],soft:[242,244,247],green:[25,135,84],amber:[196,126,32],red:[190,61,52]};
-  const addFooter=(page)=>{doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...C.muted);doc.text(`ELEVA Website Audit v1.5 · madebyeleva.com`,M,289);doc.text(`Página ${page}`,185,289)};
-  const wrap=(t,x,y,size=9,style='normal',max=174,color=C.ink)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(String(t||''),max);doc.text(lines,x,y);return y+lines.length*(size*.42)+2};
-  const heading=(t,y)=>{doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...C.ink);doc.text(t,M,y);return y+8};
-  const pill=(t,x,y)=>{doc.setFont('helvetica','bold');doc.setFontSize(7);const w=Math.max(20,doc.getTextWidth(t)+8);doc.setFillColor(...C.soft);doc.roundedRect(x,y-4,w,7,3,3,'F');doc.setTextColor(...C.ink);doc.text(t,x+4,y+1);return w};
-  const newPage=()=>{addFooter(doc.getNumberOfPages());doc.addPage();return 20};
-  const ensure=(y,need=28)=>y+need>278?newPage():y;
+  const W=210,H=297,M=18,CONTENT=174;
+  const C={ink:[15,18,22],muted:[97,105,116],soft:[244,246,248],line:[224,228,233],green:[24,145,92],amber:[211,142,36],red:[201,65,56],white:[255,255,255]};
+  const scoreColor=(v)=>v>=80?C.green:v>=55?C.amber:C.red;
+  const addFooter=(page)=>{doc.setDrawColor(...C.line);doc.line(M,282,W-M,282);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...C.muted);doc.text('ELEVA Website Audit · madebyeleva.com',M,289);doc.text(`Página ${page}`,W-M,289,{align:'right'});};
+  const wrap=(t,x,y,size=9,style='normal',max=CONTENT,color=C.ink)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(String(t||''),max);doc.text(lines,x,y);return y+lines.length*(size*.41)+2;};
+  const title=(t,y,sub='')=>{doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(...C.ink);doc.text(t,M,y);if(sub){doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...C.muted);doc.text(sub,M,y+6);}return y+(sub?16:10);};
+  const section=(t,y)=>{doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...C.ink);doc.text(t,M,y);return y+7;};
+  const ensure=(y,need=24)=>{if(y+need>274){addFooter(doc.getNumberOfPages());doc.addPage();return 20;}return y;};
+  const badge=(txt,x,y,kind='soft')=>{const palette=kind==='green'?C.green:kind==='amber'?C.amber:kind==='red'?C.red:C.soft;doc.setFont('helvetica','bold');doc.setFontSize(7);const w=Math.max(20,doc.getTextWidth(txt)+8);doc.setFillColor(...palette);doc.roundedRect(x,y-4,w,7,3,3,'F');const tc=kind==='soft'?C.ink:C.white;doc.setTextColor(...tc);doc.text(txt,x+4,y+1);return w;};
+  const scoreRing=(cx,cy,score,radius=17)=>{doc.setDrawColor(229,232,236);doc.setLineWidth(3.6);doc.circle(cx,cy,radius,'S');doc.setDrawColor(...scoreColor(score));doc.setLineWidth(3.6);const seg=Math.max(3,Math.round(score/4));for(let i=0;i<seg;i++){const a1=(-90+i*3.6)*Math.PI/180,a2=(-90+(i+1)*3.6)*Math.PI/180;doc.line(cx+Math.cos(a1)*radius,cy+Math.sin(a1)*radius,cx+Math.cos(a2)*radius,cy+Math.sin(a2)*radius);}doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(...C.ink);doc.text(String(score),cx,cy+2,{align:'center'});doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(...C.muted);doc.text('/100',cx,cy+7,{align:'center'});};
+  const metricCard=(x,y,label,score,w=82)=>{doc.setFillColor(250,251,252);doc.setDrawColor(...C.line);doc.roundedRect(x,y,w,24,3,3,'FD');doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...C.muted);doc.text(label,x+6,y+8);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(...scoreColor(score));doc.text(String(score),x+6,y+18);doc.setFillColor(232,235,239);doc.roundedRect(x+28,y+15,w-34,3,1.5,1.5,'F');doc.setFillColor(...scoreColor(score));doc.roundedRect(x+28,y+15,(w-34)*score/100,3,1.5,1.5,'F');};
+  const potential=improvementPotential(r);
 
-  // Cover
+  // PAGE 1 — COVER
   doc.setFillColor(...C.ink);doc.rect(0,0,W,H,'F');
-  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('ELEVA WEBSITE AUDIT',M,24);
-  doc.setFontSize(30);doc.text('Auditoría de',M,66);doc.text('sitio web',M,79);
-  doc.setFontSize(18);doc.setTextColor(205);doc.text(r.domain,M,96);
-  doc.setDrawColor(70);doc.line(M,112,192,112);
-  doc.setFontSize(9);doc.setTextColor(185);doc.text('ELEVA SCORE',M,133);doc.setFontSize(52);doc.setTextColor(255);doc.text(String(r.overall),M,160);doc.setFontSize(12);doc.text('/100',57,160);
-  doc.setFontSize(14);doc.text(scoreLabel(r.overall),M,177);
-  let yy=wrap(scoreSummary(r.overall),M,188,10,'normal',155,[205,205,205]);
-  doc.setFontSize(8);doc.setTextColor(160);doc.text(`Analizado: ${new Date(r.createdAt).toLocaleString('es-MX')}`,M,250);doc.text(r.finalUrl,M,258);
-  doc.setFontSize(8);doc.setTextColor(140);doc.text('Reporte técnico y comercial · Datos Google PageSpeed + metodología ELEVA',M,276);
+  doc.setFillColor(31,35,41);doc.roundedRect(18,18,54,10,5,5,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255);doc.text('ELEVA WEBSITE AUDIT',25,24.5);
+  doc.setFont('helvetica','bold');doc.setFontSize(32);doc.text('Auditoría estratégica',M,68);doc.text('de sitio web',M,82);
+  doc.setFont('helvetica','normal');doc.setFontSize(14);doc.setTextColor(190);doc.text(r.domain,M,101);
+  doc.setDrawColor(70);doc.line(M,116,W-M,116);
+  doc.setFontSize(8);doc.setTextColor(150);doc.text('ELEVA SCORE',M,138);
+  doc.setFont('helvetica','bold');doc.setFontSize(58);doc.setTextColor(255);doc.text(String(r.overall),M,169);
+  doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(170);doc.text('/100',63,168);
+  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...scoreColor(r.overall));doc.text(scoreLabel(r.overall),M,184);
+  wrap(scoreSummary(r.overall),M,196,10,'normal',150,[205,208,214]);
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(145);doc.text(`Fecha: ${new Date(r.createdAt).toLocaleDateString('es-MX',{year:'numeric',month:'long',day:'numeric'})}`,M,253);doc.text(r.finalUrl,M,262);
+  doc.setFontSize(7);doc.setTextColor(115);doc.text('Análisis técnico + comercial · Google PageSpeed Insights + metodología ELEVA',M,278);
 
-  // Executive page
+  // PAGE 2 — EXECUTIVE DASHBOARD
   doc.addPage(); let y=22;
-  y=heading('Resumen ejecutivo',y);
-  y=wrap(`El sitio obtiene un ELEVA Score de ${r.overall}/100. ${scoreSummary(r.overall)}`,M,y,10,'normal',174)+5;
-  doc.setFillColor(...C.soft);doc.roundedRect(M,y,174,27,3,3,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text('RECOMENDACIÓN',M+6,y+8);doc.setFontSize(13);doc.text(r.recommendation?.level||'Optimización',M+6,y+17);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...C.muted);doc.text(r.recommendation?.title||'',M+6,y+23);y+=36;
-  y=heading('Score por categoría',y);
-  categoryOrder.forEach((k,i)=>{const x=i%2===0?M:110;if(i%2===0&&i>0)y+=17;doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...C.ink);doc.text(categoryNames[k],x,y);doc.setFont('helvetica','bold');doc.text(`${r.scores[k]}/100`,x+62,y);doc.setFillColor(231,234,238);doc.roundedRect(x,y+4,72,3,1.5,1.5,'F');const sc=r.scores[k];const cc=sc>=80?C.green:sc>=55?C.amber:C.red;doc.setFillColor(...cc);doc.roundedRect(x,y+4,72*sc/100,3,1.5,1.5,'F');});y+=28;
-  y=heading('Fortalezas a conservar',y);
-  (r.strengths||[]).slice(0,4).forEach(s=>{y=ensure(y,18);doc.setFillColor(...C.green);doc.circle(M+2,y-1,1.8,'F');y=wrap(s.title,M+7,y,9,'bold',160);y=wrap(s.detail,M+7,y,8,'normal',160,C.muted)+2;});
+  y=title('Resumen ejecutivo',y,'Una lectura rápida del estado actual del sitio y sus oportunidades de negocio.');
+  scoreRing(38,58,r.overall,18);
+  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...C.ink);doc.text(r.recommendation?.level||'Optimización',66,50);
+  y=wrap(r.recommendation?.title||scoreSummary(r.overall),66,58,9,'normal',122,C.muted);
+  y=wrap(r.recommendation?.detail||'',66,y+2,8,'normal',122,C.muted);
+  doc.setFillColor(...(potential.kind==='red'?[252,242,241]:potential.kind==='amber'?[253,248,239]:[240,249,245]));doc.roundedRect(66,73,122,13,3,3,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...(potential.kind==='red'?C.red:potential.kind==='amber'?C.amber:C.green));doc.text(`POTENCIAL DE MEJORA: ${potential.level}`,72,81);
+  y=94;
+  section('Score por categoría',y); y+=7;
+  categoryOrder.forEach((k,i)=>{const col=i%2,row=Math.floor(i/2);metricCard(M+col*90,y+row*30,categoryNames[k],r.scores[k],84);});
+  y+=122;
+  y=section('Lectura ejecutiva',y);
+  const strongest=categoryOrder.slice().sort((a,b)=>r.scores[b]-r.scores[a]).slice(0,2).map(k=>categoryNames[k]);
+  const weakest=categoryOrder.slice().sort((a,b)=>r.scores[a]-r.scores[b]).slice(0,2).map(k=>categoryNames[k]);
+  y=wrap(`El sitio destaca principalmente en ${strongest.join(' y ')}. Las áreas que hoy ofrecen mayor oportunidad de mejora son ${weakest.join(' y ')}.`,M,y,9,'normal',CONTENT,C.ink)+3;
+  doc.setFillColor(...C.soft);doc.roundedRect(M,y,CONTENT,32,3,3,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text('RECOMENDACIÓN ELEVA',M+7,y+9);
+  wrap(r.recommendation?.detail||'Priorizar las oportunidades de mayor impacto y medir nuevamente después de implementar.',M+7,y+17,8,'normal',160,C.muted);
   addFooter(doc.getNumberOfPages());
 
-  // Priorities / action page
+  // PAGE 3 — STRENGTHS + PRIORITIES
   doc.addPage(); y=22;
-  y=heading('Prioridades por impacto',y);
-  r.priorities.forEach((p,i)=>{y=ensure(y,28);const cc=p.status==='critical'?C.red:C.amber;doc.setFillColor(...cc);doc.circle(M+4,y-1,4,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text(String(i+1),M+2.8,y+1.6);doc.setTextColor(...C.ink);doc.setFontSize(10);doc.text(p.title,M+12,y+1);y=wrap(p.detail,M+12,y+7,8,'normal',156,C.muted)+4;});
-  y=ensure(y,52);y=heading('Qué haríamos con tu sitio',y);
-  y=wrap(r.recommendation?.detail||'',M,y,9,'normal',174)+3;
-  (r.recommendation?.scope||[]).forEach((x,i)=>{y=ensure(y,14);pill(`${i+1}`,M,y);y=wrap(x,M+13,y+1,9,'bold',160)+3;});
+  y=title('Qué conservar y qué mejorar',y,'Una auditoría útil no solo señala problemas: también identifica lo que ya está funcionando.');
+  y=section('Fortalezas a conservar',y);
+  (r.strengths||[]).slice(0,5).forEach((s,i)=>{y=ensure(y,24);doc.setFillColor(240,249,245);doc.roundedRect(M,y-4,CONTENT,20,3,3,'F');doc.setFillColor(...C.green);doc.circle(M+6,y+6,2.2,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text(s.title,M+12,y+3);wrap(s.detail,M+12,y+9,7.5,'normal',154,C.muted);y+=25;});
+  y+=3; y=section('Prioridades por impacto',y);
+  r.priorities.slice(0,5).forEach((p,i)=>{y=ensure(y,26);const cc=p.status==='critical'?C.red:C.amber;doc.setFillColor(252,252,252);doc.setDrawColor(...C.line);doc.roundedRect(M,y-4,CONTENT,22,3,3,'FD');doc.setFillColor(...cc);doc.roundedRect(M,y-4,4,22,2,2,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...cc);doc.text(p.status==='critical'?'URGENTE':'IMPORTANTE',M+9,y+2);doc.setFontSize(9.5);doc.setTextColor(...C.ink);doc.text(p.title,M+9,y+8);wrap(p.detail,M+9,y+14,7.5,'normal',158,C.muted);y+=27;});
   addFooter(doc.getNumberOfPages());
 
-  // Technical findings
+  // PAGE 4 — ACTION PLAN
   doc.addPage(); y=22;
-  y=heading('Hallazgos técnicos y comerciales',y);
-  y=wrap('Estos hallazgos explican qué está ayudando o limitando al sitio. Las prioridades anteriores concentran los puntos de mayor impacto para negocio.',M,y,9,'normal',174,C.muted)+5;
-  r.findings.forEach(p=>{y=ensure(y,22);const cc=p.status==='good'?C.green:p.status==='critical'?C.red:C.amber;doc.setFillColor(...cc);doc.circle(M+2,y-1,1.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text(p.title,M+7,y);pill(p.category,145,y);y=wrap(p.detail,M+7,y+6,8,'normal',160,C.muted)+4;});
-  y=ensure(y,36);doc.setFillColor(...C.ink);doc.roundedRect(M,y,174,30,3,3,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('Siguiente paso',M+7,y+10);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(doc.splitTextToSize('Priorizar las mejoras de mayor impacto, implementarlas y repetir la auditoría para medir el avance.',155),M+7,y+18);
+  y=title('Plan de acción recomendado',y,'Qué haría ELEVA para convertir los hallazgos en mejoras concretas.');
+  const scope=r.recommendation?.scope||[];
+  scope.slice(0,6).forEach((item,i)=>{y=ensure(y,31);doc.setFillColor(...C.ink);doc.circle(M+7,y+6,6,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255);doc.text(String(i+1),M+7,y+8,{align:'center'});doc.setFontSize(11);doc.setTextColor(...C.ink);doc.text(item,M+20,y+5);const detail={
+    'UX y jerarquía':'Simplificar la lectura, clarificar el mensaje principal y dirigir al usuario hacia la acción correcta.',
+    'Conversión y contacto':'Fortalecer llamadas a la acción, formularios, WhatsApp o mecanismos de cotización.',
+    'Performance móvil':'Reducir fricción de carga y mejorar la experiencia desde celular.',
+    'SEO on-page':'Optimizar títulos, descripciones, estructura, indexación y señales para buscadores.',
+    'Contenido de confianza':'Reforzar testimonios, pruebas sociales, garantías, casos, ubicación y credenciales.',
+    'Estructura':'Ordenar navegación y contenido para que usuarios y buscadores entiendan mejor el sitio.'
+  }[item]||'Implementar mejoras concretas y medibles en esta área.';wrap(detail,M+20,y+12,8,'normal',150,C.muted);y+=31;});
+  y=ensure(y,48);doc.setFillColor(...C.soft);doc.roundedRect(M,y,CONTENT,38,4,4,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...C.ink);doc.text('Cómo mediríamos el avance',M+8,y+11);wrap('Implementar las prioridades de mayor impacto y volver a ejecutar ELEVA Website Audit para comparar score, experiencia móvil, visibilidad y capacidad de conversión.',M+8,y+20,8,'normal',157,C.muted);
   addFooter(doc.getNumberOfPages());
+
+  // PAGE 5 — COMMERCIAL PROPOSAL SUMMARY
+  doc.addPage(); y=22;
+  y=title('Propuesta recomendada por ELEVA',y,'Del diagnóstico a un alcance claro de mejora, sin comprometer una cotización automática.');
+  doc.setFillColor(...C.ink);doc.roundedRect(M,y,CONTENT,38,4,4,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(170);doc.text('POTENCIAL DE MEJORA',M+8,y+10);
+  doc.setFontSize(20);doc.setTextColor(...(potential.kind==='red'?C.red:potential.kind==='amber'?C.amber:C.green));doc.text(potential.level,M+8,y+23);
+  wrap(potential.detail,M+50,y+10,8,'normal',124,[215,218,223]);
+  y+=49;
+  y=section('Diagnóstico ejecutivo',y);
+  y=wrap(`ELEVA Score: ${r.overall}/100. ${scoreSummary(r.overall)}`,M,y,9,'normal',CONTENT,C.ink)+4;
+  y=section('Recomendación',y);
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(...C.ink);doc.text(r.recommendation?.level||'Optimización',M,y); y+=7;
+  y=wrap(r.recommendation?.title||'',M,y,9,'bold',CONTENT,C.ink);
+  y=wrap(r.recommendation?.detail||'',M,y+1,8,'normal',CONTENT,C.muted)+5;
+  y=section('Qué recomendamos trabajar',y);
+  (r.recommendation?.scope||[]).slice(0,6).forEach((item,i)=>{y=ensure(y,14);doc.setFillColor(...C.soft);doc.roundedRect(M,y-4,CONTENT,11,2,2,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...C.ink);doc.text(`${i+1}. ${item}`,M+6,y+2);y+=14;});
+  y+=3; y=section('Prioridades detectadas',y);
+  r.priorities.slice(0,3).forEach((p,i)=>{y=ensure(y,20);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...C.ink);doc.text(`${i+1}. ${p.title}`,M,y);y=wrap(p.detail,M,y+6,7.5,'normal',CONTENT,C.muted)+4;});
+  y=ensure(y,42);doc.setFillColor(...C.soft);doc.roundedRect(M,y,CONTENT,34,4,4,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...C.ink);doc.text('Siguiente paso sugerido',M+8,y+10);
+  wrap('ELEVA puede convertir estos hallazgos en un plan de mejora y una propuesta personalizada para el sitio. Recomendamos comenzar por las prioridades de mayor impacto y repetir la auditoría después de implementar los cambios.',M+8,y+18,8,'normal',156,C.muted);
+  addFooter(doc.getNumberOfPages());
+
+  // PAGE 6 — TECHNICAL APPENDIX
+  doc.addPage(); y=22;
+  y=title('Apéndice técnico',y,'Detalle de hallazgos que respaldan la recomendación ejecutiva.');
+  r.findings.forEach(p=>{y=ensure(y,23);const cc=p.status==='good'?C.green:p.status==='critical'?C.red:C.amber;doc.setFillColor(...cc);doc.circle(M+2,y-1,1.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ink);doc.text(p.title,M+7,y);badge(p.category,W-M-38,y,p.status==='good'?'green':p.status==='critical'?'red':'amber');y=wrap(p.detail,M+7,y+6,7.7,'normal',155,C.muted)+4;});
+  y=ensure(y,44);doc.setFillColor(...C.ink);doc.roundedRect(M,y,CONTENT,36,4,4,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255);doc.text('Siguiente paso',M+8,y+11);wrap('Esta auditoría identifica oportunidades iniciales. ELEVA puede ayudarte a convertir estos hallazgos en un plan de mejora y una propuesta específica para tu sitio.',M+8,y+20,8,'normal',156,[215,218,223]);
+  addFooter(doc.getNumberOfPages());
+
   doc.save(`ELEVA-Audit-${r.domain}-${new Date().toISOString().slice(0,10)}.pdf`);
 }
 function saveHistory(r){let h=JSON.parse(localStorage.getItem('elevaAudits')||'[]');h=h.filter(x=>x.domain!==r.domain);h.unshift({domain:r.domain,url:r.finalUrl,overall:r.overall,scores:r.scores,createdAt:r.createdAt,report:r});localStorage.setItem('elevaAudits',JSON.stringify(h.slice(0,20)))}
