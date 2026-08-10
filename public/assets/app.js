@@ -62,7 +62,11 @@ function buildReport(raw){
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
   const strengths=buildStrengths(s,psi,scores);
-  return {version:'1.9.2',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  const detectedPriorities=findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact);
+  const optimizationOpportunities=buildOptimizationOpportunities(scores,psi);
+  const priorities=[...detectedPriorities];
+  optimizationOpportunities.forEach(o=>{if(priorities.length<5 && !priorities.some(p=>p.category===o.category || p.title===o.title)) priorities.push(o)});
+  return {version:'1.9.3',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:priorities.slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -164,14 +168,50 @@ function scoreDesign(s,a11y,bp){
   return aa*.35+bb*.25+structural*.40;
 }
 function buildRecommendation(scores,s,overall){
-  const weak=Object.entries(scores).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k])=>categoryNames[k]);
+  const ranked=Object.entries(scores).sort((a,b)=>a[1]-b[1]);
+  const weak=ranked.slice(0,3).map(([k])=>categoryNames[k]);
+  const scopeMap={
+    mobile:'Optimización mobile', speed:'Core Web Vitals y performance', design:'UX y jerarquía',
+    conversion:'CRO / pruebas de CTA', seo:'SEO on-page y contenidos', structure:'Arquitectura y jerarquía',
+    content:'Contenido de confianza', visibility:'Indexación y visibilidad'
+  };
+  const dynamicScope=ranked.filter(([,v])=>v<100).map(([k])=>scopeMap[k]).filter(Boolean);
+  const uniqueScope=[...new Set(dynamicScope)];
+  const fill=['CRO / pruebas de CTA','SEO de contenidos','Medición de conversiones','Reauditoría periódica'];
+  fill.forEach(x=>{if(uniqueScope.length<5 && !uniqueScope.includes(x)) uniqueScope.push(x)});
+
   if(overall<55 || (scores.design<55 && scores.conversion<55)){
-    return {level:'Rediseño estratégico',title:'Recomendamos un rediseño enfocado en conversión',detail:`La base actual presenta fricción importante. Priorizaríamos ${weak.join(', ')} y reconstruiríamos el recorrido desde la llegada hasta el contacto.`,scope:['Arquitectura y mensaje','Diseño mobile-first','CTA y captura de leads','SEO técnico base','Medición post-lanzamiento']};
+    return {level:'Rediseño estratégico',title:'Recomendamos un rediseño enfocado en conversión',detail:`La base actual presenta fricción importante. Priorizaríamos ${weak.join(', ')} y reconstruiríamos el recorrido desde la llegada hasta el contacto.`,scope:uniqueScope.slice(0,5)};
   }
   if(overall<75 || scores.conversion<70 || scores.mobile<70){
-    return {level:'Optimización prioritaria',title:'Recomendamos optimizar antes de rediseñar todo',detail:`El sitio tiene una base aprovechable, pero hay oportunidades claras en ${weak.join(', ')}. Una intervención focalizada puede elevar resultados sin rehacer todo desde cero.`,scope:['UX y jerarquía','Conversión y contacto','Performance móvil','SEO on-page','Contenido de confianza']};
+    return {level:'Optimización prioritaria',title:'Recomendamos optimizar antes de rediseñar todo',detail:`El sitio tiene una base aprovechable, pero hay oportunidades claras en ${weak.join(', ')}. Una intervención focalizada puede elevar resultados sin rehacer todo desde cero.`,scope:uniqueScope.slice(0,5)};
   }
-  return {level:'Growth & mejora continua',title:'La base es sólida; recomendamos optimización incremental',detail:`El sitio funciona bien. El mayor retorno vendrá de mejorar ${weak.join(', ')} y medir el impacto de cambios específicos.`,scope:['CRO / pruebas de CTA','Performance fina','SEO de contenidos','Schema y visibilidad','Reauditoría periódica']};
+  return {level:'Growth & mejora continua',title:'La base es sólida; recomendamos optimización incremental',detail:`El sitio funciona bien. El mayor retorno vendrá de afinar ${weak.join(', ')} y medir el impacto de cambios específicos.`,scope:uniqueScope.slice(0,5)};
+}
+function buildOptimizationOpportunities(scores,psi){
+  const items=[];
+  const push=(category,title,detail,impact=3)=>items.push({status:'opportunity',category,title,detail,impact,synthetic:true});
+  const m=psi?.metrics||{};
+  if(scores.mobile<95) push('Mobile','Afinar experiencia móvil',`Mobile obtiene ${scores.mobile}/100. Revisa espaciado, legibilidad, interacción táctil y experiencia en pantallas pequeñas.`,5);
+  if(scores.speed<95){
+    const lcp=m.lcp?.display, fcp=m.fcp?.display;
+    push('Velocidad','Optimizar carga percibida',`Velocidad obtiene ${scores.speed}/100${lcp?`; LCP ${lcp}`:''}${fcp?` y FCP ${fcp}`:''}. Hay margen para hacer que el contenido principal aparezca antes.`,5);
+  }
+  if(scores.design<95) push('Diseño & UX','Pulir UX y jerarquía',`Diseño & UX obtiene ${scores.design}/100. Conviene revisar jerarquía visual, claridad del recorrido y consistencia mobile.`,4);
+  if(scores.conversion<95) push('Conversión','Probar mejoras de conversión',`Conversión obtiene ${scores.conversion}/100. Prueba CTA, formularios y recorridos de contacto para reducir fricción.`,4);
+  if(scores.seo<95) push('SEO','Expandir SEO on-page',`SEO obtiene ${scores.seo}/100. Hay oportunidad de reforzar metadatos, intención de búsqueda y cobertura de contenidos.`,4);
+  if(scores.content<95) push('Contenido','Fortalecer contenido útil',`Contenido obtiene ${scores.content}/100. Refuerza claridad de servicios, confianza y respuestas a objeciones.`,3);
+  if(scores.visibility<95) push('Visibilidad','Mejorar descubrimiento orgánico',`Visibilidad obtiene ${scores.visibility}/100. Revisa indexación, sitemap, datos estructurados y señales locales cuando apliquen.`,4);
+  if(scores.structure<95) push('Estructura','Afinar estructura semántica',`Estructura obtiene ${scores.structure}/100. Revisa encabezados, navegación y organización de secciones.`,3);
+  if(items.length<3){
+    const defaults=[
+      ['Conversión','Medir y probar CTA','Con una base sólida, el siguiente crecimiento suele venir de pruebas de CTA y medición de conversiones.',2],
+      ['SEO','Crear contenido de crecimiento','Amplía cobertura de búsquedas relevantes con páginas o contenidos orientados a intención real.',2],
+      ['Técnico','Reauditar después de cambios','Repite la auditoría después de optimizaciones para documentar avances y detectar nuevas oportunidades.',1]
+    ];
+    defaults.forEach(([c,t,d,i])=>{if(items.length<3 && !items.some(x=>x.title===t)) push(c,t,d,i)});
+  }
+  return items.slice(0,5);
 }
 function buildStrengths(s,psi,scores){
   const items=[];

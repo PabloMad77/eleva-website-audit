@@ -45,7 +45,7 @@ export default {
       return json({
         ok: true,
         service: 'ELEVA Website Audit',
-        version: '1.9.2',
+        version: '1.9.3',
         pagespeedConfigured: Boolean(env.PAGESPEED_API_KEY)
       });
     }
@@ -304,7 +304,7 @@ async function probe(url) {
   try {
     const r = await fetch(url, {
       redirect: 'follow',
-      headers: { 'user-agent': 'ELEVAWebsiteAudit/1.9.2' }
+      headers: { 'user-agent': 'ELEVAWebsiteAudit/1.9.3' }
     });
     const text = (await r.text()).slice(0, 100000);
     return { ok: r.ok, text, status: r.status };

@@ -1,4 +1,4 @@
-# ELEVA Website Audit v1.9.2
+# ELEVA Website Audit v1.9.3
 
 Cloudflare Workers + Static Assets edition.
 
@@ -90,11 +90,16 @@ El campo de auditoría acepta dominios como `laspulseras.com`, `www.laspulseras.
 - Footer y espaciado ajustados para evitar cruces con contenido.
 
 
-## v1.9.2
+## v1.9.3
 
 - Ajuste puntual del PDF: el recuadro de Recomendación ELEVA en el resumen ejecutivo ahora tiene mayor altura y margen inferior para evitar que el texto descriptivo se salga del contenedor.
 - Se conserva sin cambios la lógica de auditoría, scoring, PageSpeed, dashboard y estructura de seis páginas del PDF.
 
 
-## v1.9.2 robots.txt logic
+## v1.9.3 robots.txt logic
 The robots.txt analyzer now parses directive groups instead of using a cross-group regular expression. It distinguishes a true Googlebot/site-wide root block from partial path restrictions and blocks aimed only at non-Google bots. Partial or bot-specific restrictions no longer trigger the hard discoverability penalty.
+
+## v1.9.3 dynamic recommendations
+- Recommendations and scope now follow the lowest-scoring categories instead of a fixed template.
+- Excellent sites no longer show an empty “Top 3 prioridades” section; the report fills it with optimization opportunities such as mobile, Core Web Vitals, CRO, content growth, or re-audit actions.
+- Areas already scoring 100 are not recommended as primary work unless another detected finding specifically justifies them.
