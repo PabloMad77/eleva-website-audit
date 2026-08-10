@@ -62,7 +62,7 @@ function buildReport(raw){
   const findings=makeFindings(s,psi,scores,raw);
   const recommendation=buildRecommendation(scores,s,overall);
   const strengths=buildStrengths(s,psi,scores);
-  return {version:'1.9.1',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
+  return {version:'1.9.2',url:raw.url,finalUrl:raw.finalUrl||raw.url,domain:new URL(raw.finalUrl||raw.url).hostname.replace(/^www\./,''),createdAt:new Date().toISOString(),overall,scores,scan:s,pagespeed:psi,findings,recommendation,strengths,priorities:findings.filter(f=>f.status!=='good').sort((a,b)=>severity(b.status)-severity(a.status)||b.impact-a.impact).slice(0,5)};
 }
 function weighted(vals,weights){let a=0,w=0;vals.forEach((v,i)=>{if(typeof v==='number'){a+=v*weights[i];w+=weights[i]}});return w?a/w:60}
 function scoreSpeedFallback(s){let sc=50;if(s.lazyImages)sc+=8;if(s.imageCount<=12)sc+=7;if(s.scriptCount<=8)sc+=7;if(s.stylesheetCount<=6)sc+=5;return sc}
@@ -183,7 +183,7 @@ function buildStrengths(s,psi,scores){
   if(s.whatsapp) add('WhatsApp disponible','Existe una ruta directa para iniciar conversación con el negocio.','Conversión');
   if(s.formCount>0) add('Captura de prospectos','El sitio ya cuenta con formulario para recibir información del visitante.','Conversión');
   if(s.trustSignals) add('Señales de confianza','Detectamos elementos como testimonios, reseñas, garantía, experiencia o casos que ayudan a reducir fricción.','Contenido');
-  if(s.sitemap && s.robotsTxt) add('Rastreo preparado','robots.txt y sitemap están disponibles para ayudar a los buscadores a recorrer el sitio.','Visibilidad');
+  if(s.sitemap && s.robotsTxt && !s.robotsDisallowAll) add('Rastreo preparado','robots.txt y sitemap están disponibles y no detectamos un bloqueo general aplicable a Googlebot.','Visibilidad');
   if(s.schema) add('Datos estructurados','El sitio utiliza Schema, una señal útil para que los buscadores comprendan mejor el contenido.','Visibilidad');
   if(s.altCoverage>=.8) add('Imágenes bien descritas',`${Math.round(s.altCoverage*100)}% de las imágenes tienen texto alternativo.`, 'Contenido');
   if(s.ctaCount>=2) add('Llamadas a la acción visibles',`Detectamos ${s.ctaCount} CTA relevantes a lo largo de la página.`, 'Conversión');
@@ -198,7 +198,9 @@ function severity(s){return s==='critical'?3:s==='warning'?2:1}
 function f(status,category,title,detail,impact=5){return{status,category,title,detail,impact}}
 function makeFindings(s,p,scores,raw){const out=[];
   if(s.robotsMetaNoindex) out.push(f('critical','Visibilidad','Página marcada como noindex','La página indica a buscadores que no debe indexarse. Verifica si es intencional antes de cualquier esfuerzo SEO.',10));
-  if(s.robotsDisallowAll) out.push(f('critical','Visibilidad','robots.txt bloquea el sitio','Se detectó una regla que puede impedir el rastreo general del sitio.',10));
+  if(s.robotsDisallowAll) out.push(f('critical','Visibilidad','robots.txt bloquea el rastreo de Google','Las reglas aplicables a Googlebot incluyen un bloqueo de raíz (Disallow: /). Esto puede impedir que Google rastree el sitio.',10));
+  else if(s.robotsPartialBlocks) out.push(f('good','Visibilidad','robots.txt usa bloqueos parciales','Se detectaron rutas específicas restringidas, pero no un bloqueo general aplicable a Googlebot.',2));
+  if((s.robotsOtherBlockedBots||[]).length) out.push(f('good','Visibilidad','Bots específicos restringidos',`El sitio bloquea bots específicos (${s.robotsOtherBlockedBots.slice(0,4).join(', ')}${s.robotsOtherBlockedBots.length>4?'…':''}) sin afectar por sí solo la visibilidad en Google.`,1));
   out.push(s.title?f('good','SEO','Título SEO encontrado',`“${s.title.slice(0,90)}”`,2):f('critical','SEO','Falta el título de la página','Agrega un <title> descriptivo y orientado a la intención de búsqueda.',10));
   out.push(s.metaDescription?f(s.descriptionLength<70||s.descriptionLength>165?'warning':'good','SEO','Meta description',s.descriptionLength<70||s.descriptionLength>165?`Existe, pero su longitud (${s.descriptionLength}) puede optimizarse.`:'La página cuenta con una descripción útil para buscadores.',5):f('critical','SEO','Falta meta description','Añade una descripción clara que explique el servicio y motive el clic.',8));
   out.push(s.viewport?f('good','Mobile','Viewport móvil configurado','La página declara una vista adaptable para dispositivos móviles.',2):f('critical','Mobile','Falta viewport móvil','Sin viewport, la experiencia en teléfonos puede romperse o escalar incorrectamente.',10));

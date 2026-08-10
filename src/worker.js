@@ -45,7 +45,7 @@ export default {
       return json({
         ok: true,
         service: 'ELEVA Website Audit',
-        version: '1.9.1',
+        version: '1.9.2',
         pagespeedConfigured: Boolean(env.PAGESPEED_API_KEY)
       });
     }
@@ -141,6 +141,87 @@ async function auditRequest(request, env) {
   });
 }
 
+
+function parseRobotsTxt(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const groups = [];
+  let currentAgents = [];
+  let currentDirectives = [];
+
+  const flush = () => {
+    if (currentAgents.length) {
+      groups.push({
+        userAgents: [...new Set(currentAgents.map(x => x.toLowerCase()))],
+        directives: [...currentDirectives]
+      });
+    }
+    currentAgents = [];
+    currentDirectives = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/#.*$/, '').trim();
+    if (!line) continue;
+    const m = line.match(/^([^:]+):\s*(.*)$/);
+    if (!m) continue;
+    const key = m[1].trim().toLowerCase();
+    const value = m[2].trim();
+
+    if (key === 'user-agent') {
+      // A user-agent after directives starts a new group. Consecutive user-agent
+      // lines belong to the same group per robots.txt conventions.
+      if (currentDirectives.length) flush();
+      currentAgents.push(value);
+      continue;
+    }
+
+    if (!currentAgents.length) continue;
+    if (key === 'allow' || key === 'disallow') {
+      currentDirectives.push({ type: key, path: value });
+    }
+  }
+  flush();
+
+  const matchingGroups = agent => groups.filter(g => g.userAgents.some(a => a === agent));
+  const wildcardGroups = matchingGroups('*');
+  const googleGroups = groups.filter(g => g.userAgents.some(a => /^googlebot(?:-|$)/i.test(a)));
+
+  const summarize = selected => {
+    const directives = selected.flatMap(g => g.directives);
+    const disallows = directives.filter(d => d.type === 'disallow' && d.path).map(d => d.path);
+    const allows = directives.filter(d => d.type === 'allow' && d.path).map(d => d.path);
+    const blocksRoot = disallows.includes('/');
+    const explicitlyAllowsRoot = allows.includes('/');
+    return {
+      disallows,
+      allows,
+      blocksRoot: blocksRoot && !explicitlyAllowsRoot,
+      hasPartialBlocks: disallows.some(p => p !== '/')
+    };
+  };
+
+  const wildcard = summarize(wildcardGroups);
+  const google = summarize(googleGroups);
+  // Google-specific groups take precedence over wildcard for Googlebot. If no
+  // specific Googlebot group exists, wildcard rules are the applicable fallback.
+  const effectiveGoogle = googleGroups.length ? google : wildcard;
+
+  const otherBlockedBots = groups
+    .filter(g => !g.userAgents.includes('*') && !g.userAgents.some(a => /^googlebot(?:-|$)/i.test(a)))
+    .filter(g => summarize([g]).blocksRoot)
+    .flatMap(g => g.userAgents)
+    .filter(Boolean);
+
+  return {
+    groups,
+    wildcardBlockAll: wildcard.blocksRoot,
+    googlebotBlockAll: effectiveGoogle.blocksRoot,
+    hasPartialBlocks: effectiveGoogle.hasPartialBlocks,
+    otherBlockedBots: [...new Set(otherBlockedBots)].slice(0, 12),
+    effectiveGoogleDisallows: effectiveGoogle.disallows.slice(0, 20)
+  };
+}
+
 function analyze(html, url, robots, sitemap) {
   const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s+/g, ' ').trim();
   const desc = metaContent(html, 'description');
@@ -167,7 +248,8 @@ function analyze(html, url, robots, sitemap) {
   const ctaCount = buttonText.split('|').filter(x => ctaRegex.test(x)).length;
   const stylesheetCount = count(html, /<link\b[^>]*rel\s*=\s*["'][^"']*stylesheet[^"']*["'][^>]*>/gi);
   const scriptCount = count(html, /<script\b/gi);
-  const robotsText = (robots.text || '').toLowerCase();
+  const robotsText = robots.text || '';
+  const robotsRules = parseRobotsTxt(robotsText);
 
   return {
     title,
@@ -209,8 +291,12 @@ function analyze(html, url, robots, sitemap) {
     responsiveSignals: /@media\s*\(|max-width|min-width|srcset=|sizes=/i.test(html),
     tapTargetSignals: /button|btn|cta|menu|hamburger/i.test(html),
     robotsTxt: robots.ok,
-    robotsDisallowAll: /user-agent:\s*\*[\s\S]*?disallow:\s*\/\s*(?:\r?\n|$)/i.test(robotsText),
-    sitemap: sitemap.ok || /sitemap:/i.test(robotsText)
+    robotsDisallowAll: robotsRules.googlebotBlockAll,
+    robotsWildcardBlockAll: robotsRules.wildcardBlockAll,
+    robotsPartialBlocks: robotsRules.hasPartialBlocks,
+    robotsOtherBlockedBots: robotsRules.otherBlockedBots,
+    robotsEffectiveGoogleDisallows: robotsRules.effectiveGoogleDisallows,
+    sitemap: sitemap.ok || /(?:^|\n)\s*sitemap\s*:/i.test(robotsText)
   };
 }
 
@@ -218,7 +304,7 @@ async function probe(url) {
   try {
     const r = await fetch(url, {
       redirect: 'follow',
-      headers: { 'user-agent': 'ELEVAWebsiteAudit/1.9.1' }
+      headers: { 'user-agent': 'ELEVAWebsiteAudit/1.9.2' }
     });
     const text = (await r.text()).slice(0, 100000);
     return { ok: r.ok, text, status: r.status };
